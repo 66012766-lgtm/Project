@@ -1,0 +1,39 @@
+[
+  {
+    "name": "visitDate",
+    "label": "วันที่เข้าสาขา",
+    "type": "date",
+    "required": true
+  },
+  {
+    "name": "สาขา",
+    "label": "สาขาที่เข้า",
+    "type": "select",
+    "required": true,
+    "options": ["ชิดลม", "ลาดพร้าว", "บางกะปิ"]
+  },
+  {
+    "name": "reason",
+    "label": "เหตุผล",
+    "type": "text",
+    "required": false
+  },
+  {
+    "name": "problem",
+    "label": "ปัญหาที่เจอ",
+    "type": "textarea",
+    "required": true
+  },
+  {
+    "name": "beforeImage",
+    "label": "รูป Before",
+    "type": "file",
+    "required": false
+  },
+  {
+    "name": "afterImage",
+    "label": "รูป After",
+    "type": "file",
+    "required": false
+  }
+]
