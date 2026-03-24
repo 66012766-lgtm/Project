@@ -5,7 +5,6 @@ const cors = require("cors");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ================== CORS (แก้ปัญหามือถือ) ==================
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "https://loginfirebacse2766.web.app",
@@ -26,16 +25,15 @@ app.use(cors({
   credentials: true
 }));
 
-// ================== Middleware ==================
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// ================== Database ==================
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "kanokwan"
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQLPASSWORD,
+  database: process.env.MYSQLDATABASE,
+  port: process.env.MYSQLPORT
 });
 
 db.connect((err) => {
@@ -46,9 +44,6 @@ db.connect((err) => {
   }
 });
 
-// ================== Routes ==================
-
-// 🔐 LOGIN
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
 
@@ -64,7 +59,6 @@ app.post("/api/login", (req, res) => {
   });
 });
 
-// 📥 CREATE VISIT
 app.post("/api/visits", (req, res) => {
   const data = req.body;
 
@@ -85,7 +79,6 @@ app.post("/api/visits", (req, res) => {
   );
 });
 
-// 📤 GET VISITS
 app.get("/api/visits", (req, res) => {
   const sql = "SELECT * FROM visits ORDER BY id DESC";
 
@@ -96,7 +89,6 @@ app.get("/api/visits", (req, res) => {
   });
 });
 
-// ================== Start Server ==================
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
