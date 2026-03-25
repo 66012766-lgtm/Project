@@ -1,17 +1,24 @@
-import axios from "axios";
+const mysql = require("mysql2");
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+const pool = mysql.createPool({
+  host: process.env.MYSQLHOST || "localhost",
+  user: process.env.MYSQLUSER || "root",
+  password: process.env.MYSQLPASSWORD || "",
+  database: process.env.MYSQLDATABASE || "test",
+  port: process.env.MYSQLPORT || 3306,
+
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
-export const loginUser = async (data) => {
-  const res = await api.post("/api/login", data);
-  return res.data;
-};
+pool.getConnection((err, connection) => {
+  if (err) {
+    console.error("❌ เชื่อมต่อ Database ไม่สำเร็จ:", err.message);
+  } else {
+    console.log("✅ เชื่อมต่อ Database สำเร็จแล้ว!");
+    connection.release();
+  }
+});
 
-export const createVisit = async (data) => {
-  const res = await api.post("/api/save-visit", data);
-  return res.data;
-};
-
-export default api;
+module.exports = pool.promise();

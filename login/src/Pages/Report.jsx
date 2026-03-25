@@ -62,7 +62,6 @@ export default function Report() {
     }
   };
 
-  // --- Filtering Logic (useMemo) ---
   const retailerOpts = useMemo(() => {
     const data = selUser ? masterOptions : rows;
     const unique = [...new Set(data.map((d) => d.retailer))].filter(Boolean);
@@ -98,16 +97,12 @@ export default function Report() {
     );
   }, [rows, selUser, selRetailer, selBrand, selBranch]);
 
-  // ==========================================
-  // 2. RENDER UI
-  // ==========================================
   return (
     <div className="report-container">
       <div className="bg-blur blur-1"></div>
       <div className="bg-blur blur-2"></div>
 
       <div className="main-content">
-        {/* --- Top Header --- */}
         <header className="header-card">
           <div className="header-info">
             <span className="badge-new">Analytics Dashboard</span>
@@ -133,7 +128,6 @@ export default function Report() {
           </div>
         </header>
 
-        {/* --- Filters Section --- */}
         <section className="filter-card">
           <div className="filter-title">
             <span>🔍</span>
@@ -182,7 +176,6 @@ export default function Report() {
           </div>
         </section>
 
-        {/* --- Table Results --- */}
         <div className="table-card">
           <div className="table-top">
             <div className="table-info">
@@ -236,10 +229,6 @@ export default function Report() {
   );
 }
 
-// ==========================================
-// 3. SUB-COMPONENTS (Clean & Reuse)
-// ==========================================
-
 const FilterSelect = ({ label, value, options, onChange }) => (
   <div className="filter-group">
     <label>{label}</label>
@@ -255,18 +244,56 @@ const FilterSelect = ({ label, value, options, onChange }) => (
 );
 
 const DataRow = ({ r, checked, onCheck, onDelete, onZoom }) => {
+  const normalizeImageSrc = (src) => {
+    if (!src) return "";
+    const clean = String(src).trim();
+
+    if (
+      clean.startsWith("data:image/") ||
+      clean.startsWith("http://") ||
+      clean.startsWith("https://")
+    ) {
+      return clean;
+    }
+
+    return `http://localhost:5000/uploads/${clean}`;
+  };
+
   const renderImgs = (data) => {
     try {
-      const imgs = JSON.parse(data);
-      if (!Array.isArray(imgs) || imgs.length === 0)
+      if (!data) return <div className="thumb-empty">ไม่มีรูป</div>;
+
+      let imgs = [];
+
+      if (typeof data === "string") {
+        const trimmed = data.trim();
+        if (trimmed.startsWith("[")) {
+          imgs = JSON.parse(trimmed);
+        } else {
+          imgs = [trimmed];
+        }
+      } else if (Array.isArray(data)) {
+        imgs = data;
+      }
+
+      if (!Array.isArray(imgs) || imgs.length === 0) {
         return <div className="thumb-empty">ไม่มีรูป</div>;
+      }
+
       return (
         <div className="thumb-grid">
-          {imgs.map((src, i) => (
-            <div key={i} className="thumb-item" onClick={() => onZoom(src)}>
-              <img src={src} className="thumb-img" alt="preview" />
-            </div>
-          ))}
+          {imgs.map((src, i) => {
+            const finalSrc = normalizeImageSrc(src);
+            return (
+              <div
+                key={i}
+                className="thumb-item"
+                onClick={() => onZoom(finalSrc)}
+              >
+                <img src={finalSrc} className="thumb-img" alt="preview" />
+              </div>
+            );
+          })}
         </div>
       );
     } catch {
@@ -342,9 +369,6 @@ const ImageZoom = ({ src, onClose }) => (
   </div>
 );
 
-// ==========================================
-// 4. CSS CONSTANT (Move out of Render)
-// ==========================================
 const customCSS = `
   @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@200;300;400;500;600;700;800&display=swap');
   :root { --p-blue: #2563eb; --p-indigo: #4f46e5; --t-main: #0f172a; --t-sub: #64748b; --bg-light: #f8fafc; --white: #ffffff; --radius-l: 24px; --shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 0.1); --shadow-md: 0 20px 25px -5px rgb(0 0 0 / 0.05); }

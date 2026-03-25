@@ -23,6 +23,9 @@ export default function AdminForm() {
     role: "",
   });
 
+  const getBranchLabel = (branch) =>
+    branch?.display_name || branch?.name || branch?.branch_name || "";
+
   // --- Functions ---
   const fetchData = async () => {
     try {
@@ -30,24 +33,34 @@ export default function AdminForm() {
         fetch("http://localhost:5000/api/users"),
         fetch("http://localhost:5000/api/branches"),
       ]);
-      const usersData = await resUsers.json();
-      const branchesData = await resBranches.json();
+
+      const usersData = resUsers.ok ? await resUsers.json() : [];
+      const branchesData = resBranches.ok ? await resBranches.json() : [];
 
       const usersWithBranches = await Promise.all(
         usersData.map(async (u) => {
           try {
             const resUb = await fetch(
-              `http://localhost:5000/api/user-branches/${u.id}`,
+              `http://localhost:5000/api/user-branches/${u.id}`
             );
             const ubData = resUb.ok ? await resUb.json() : [];
-            return { ...u, branches: ubData.map((item) => Number(item)) };
+
+            return {
+              ...u,
+              branches: Array.isArray(ubData)
+                ? ubData
+                    .map((item) => Number(item?.id ?? item?.branch_id))
+                    .filter((id) => !Number.isNaN(id))
+                : [],
+            };
           } catch (e) {
             return { ...u, branches: [] };
           }
-        }),
+        })
       );
-      setUsers(usersWithBranches);
-      setBranches(branchesData);
+
+      setUsers(Array.isArray(usersWithBranches) ? usersWithBranches : []);
+      setBranches(Array.isArray(branchesData) ? branchesData : []);
     } catch (err) {
       console.error("Fetch Error:", err);
     }
@@ -91,7 +104,7 @@ export default function AdminForm() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(editUserData),
-        },
+        }
       );
       if (res.ok) {
         setShowEditModal(false);
@@ -106,9 +119,11 @@ export default function AdminForm() {
 
   const handleAddOrToggleBranch = async (userId, inputValue) => {
     if (!inputValue) return;
+
     let targetBranch = branches.find(
-      (b) => b.display_name.trim() === inputValue.trim(),
+      (b) => getBranchLabel(b).trim() === inputValue.trim()
     );
+
     if (!targetBranch) {
       if (
         window.confirm(`ไม่พบสาขา "${inputValue}" ต้องการสร้างใหม่หรือไม่?`)
@@ -116,12 +131,16 @@ export default function AdminForm() {
         const res = await fetch("http://localhost:5000/api/branches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ display_name: inputValue.trim() }),
+          body: JSON.stringify({
+            display_name: inputValue.trim(),
+            name: inputValue.trim(),
+          }),
         });
         targetBranch = await res.json();
         await fetchData();
       } else return;
     }
+
     await toggleUserBranch(userId, targetBranch.id || targetBranch.branchId);
   };
 
@@ -263,6 +282,7 @@ export default function AdminForm() {
                     setEditUserData={setEditUserData}
                     setShowEditModal={setShowEditModal}
                     deleteUser={deleteUser}
+                    getBranchLabel={getBranchLabel}
                   />
                 ))}
               </tbody>
@@ -298,6 +318,7 @@ const UserRow = ({
   setEditUserData,
   setShowEditModal,
   deleteUser,
+  getBranchLabel,
 }) => (
   <>
     <tr style={styles.tableRow}>
@@ -336,7 +357,7 @@ const UserRow = ({
             />
             <datalist id={`branch-list-${u.id}`}>
               {branches.map((b) => (
-                <option key={b.id} value={b.display_name} />
+                <option key={b.id} value={getBranchLabel(b)} />
               ))}
             </datalist>
             <button
@@ -380,7 +401,7 @@ const UserRow = ({
               .filter((b) => u.branches.includes(Number(b.id)))
               .map((b) => (
                 <div key={b.id} style={styles.branchChip}>
-                  {b.display_name}{" "}
+                  {getBranchLabel(b)}{" "}
                   <span
                     style={styles.chipRemove}
                     onClick={() => toggleUserBranch(u.id, b.id)}
