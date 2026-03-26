@@ -44,12 +44,11 @@ export default function Login() {
     try {
       // จำลองการ Delay เพื่อโชว์ Loading state สวยๆ
       await new Promise((resolve) => setTimeout(resolve, 800));
-
-      const response = await fetch("http://localhost:5000/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
+const response = await fetch("https://project-production-e895.up.railway.app/api/login", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ username, password }),
+});
       const data = await response.json();
 
       if (data.success) {
