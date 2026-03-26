@@ -189,12 +189,24 @@ app.get("/api/work_log", async (req, res) => {
 
 app.delete("/api/work_log/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    await db.query("DELETE FROM work_log WHERE id = ?", [id]);
-    res.json({ success: true });
+   const [rows] = await db.query(
+  "SELECT * FROM users WHERE username = ? AND password = ? ORDER BY id DESC LIMIT 1",
+  [username, password]
+);
   } catch (error) {
     console.error("Delete error:", error);
     res.status(500).json({ error: error.message });
+  }
+});
+app.get("/api/fix-user-branches", async (req, res) => {
+  try {
+    await db.query("UPDATE user_branches SET user_id = 8 WHERE user_id = 7");
+    await db.query("UPDATE user_branches SET user_id = 9 WHERE user_id = 8");
+
+    res.json({ success: true, message: "user_branches fixed" });
+  } catch (error) {
+    console.error("Fix error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 app.get("/api/setup-all", async (req, res) => {
