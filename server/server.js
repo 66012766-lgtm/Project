@@ -72,6 +72,7 @@ app.get("/api/user-branches-list/:userId", async (req, res) => {
       FROM user_branches ub
       INNER JOIN branches b ON ub.branch_id = b.id
       WHERE ub.user_id = ?
+      ORDER BY b.id ASC
       `,
       [userId]
     );
@@ -93,6 +94,7 @@ app.get("/api/user-branches/:userId", async (req, res) => {
       FROM user_branches ub
       INNER JOIN branches b ON ub.branch_id = b.id
       WHERE ub.user_id = ?
+      ORDER BY b.id ASC
       `,
       [userId]
     );
@@ -104,26 +106,6 @@ app.get("/api/user-branches/:userId", async (req, res) => {
   }
 });
 
-app.get('/api/user-branches/:userId', async (req, res) => {
-  const { userId } = req.params;
-
-  try {
-    const [rows] = await connection.query(`
-      SELECT 
-        ub.branch_id,
-        b.name
-      FROM user_branches ub
-      JOIN branches b ON ub.branch_id = b.id
-      WHERE ub.user_id = ?
-      ORDER BY b.name ASC
-    `, [userId]);
-
-    res.json(rows);
-  } catch (err) {
-    console.error('Error fetching user branches:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 app.post("/api/save-visit", async (req, res) => {
   const {
     userId,
@@ -184,26 +166,49 @@ app.get("/api/work_log", async (req, res) => {
 
 app.delete("/api/work_log/:id", async (req, res) => {
   try {
-   const [rows] = await db.query(
-  "SELECT * FROM users WHERE username = ? AND password = ? ORDER BY id DESC LIMIT 1",
-  [username, password]
-);
+    const { id } = req.params;
+
+    const [result] = await db.query(
+      "DELETE FROM work_log WHERE id = ?",
+      [id]
+    );
+
+    res.json({
+      success: true,
+      affectedRows: result.affectedRows,
+    });
   } catch (error) {
     console.error("Delete error:", error);
     res.status(500).json({ error: error.message });
   }
 });
-app.get("/api/fix-user-branches", async (req, res) => {
-  try {
-    await db.query("UPDATE user_branches SET user_id = 8 WHERE user_id = 7");
-    await db.query("UPDATE user_branches SET user_id = 9 WHERE user_id = 8");
 
-    res.json({ success: true, message: "user_branches fixed" });
+app.get("/api/rebuild-user-branches", async (req, res) => {
+  try {
+    await db.query("DELETE FROM user_branches");
+
+    await db.query(`
+      INSERT INTO user_branches (user_id, branch_id)
+      SELECT DISTINCT
+        u.id AS user_id,
+        b.id AS branch_id
+      FROM store_assignments sa
+      INNER JOIN users u ON u.username = sa.username
+      INNER JOIN branches b ON b.display_name = sa.store_name_brand
+      WHERE sa.username IS NOT NULL
+        AND TRIM(sa.username) <> ''
+        AND LOWER(sa.username) <> 'admin'
+        AND (u.role IS NULL OR LOWER(u.role) <> 'admin')
+      ORDER BY u.id, b.id
+    `);
+
+    res.json({ success: true, message: "user_branches rebuilt" });
   } catch (error) {
-    console.error("Fix error:", error);
+    console.error("Rebuild user_branches error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 app.get("/api/setup-all", async (req, res) => {
   const connection = await db.getConnection();
 
@@ -542,31 +547,21 @@ app.get("/api/setup-all", async (req, res) => {
         CONSTRAINT user_branches_ibfk_2 FOREIGN KEY (branch_id) REFERENCES branches (id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8
     `);
-await connection.query(`
-  INSERT INTO user_branches (id, user_id, branch_id) VALUES
-  (46, 2, 1),(47, 2, 2),(175, 2, 3),(49, 2, 4),(50, 2, 5),(51, 2, 6),(52, 2, 7),(53, 2, 8),
-  (54, 2, 9),(55, 2, 10),(56, 2, 11),(57, 2, 12),(58, 2, 13),(59, 2, 14),(60, 2, 15),(61, 2, 16),
-  (62, 2, 17),(63, 2, 18),(64, 2, 19),(65, 2, 20),(66, 2, 21),(67, 2, 22),(68, 2, 23),(69, 2, 24),
-  (70, 2, 25),(71, 2, 26),(72, 2, 27),(73, 2, 28),(74, 2, 29),(75, 2, 30),(76, 2, 31),(77, 2, 32),
-  (78, 2, 33),(79, 2, 34),
 
-  (80, 3, 35),(81, 3, 36),(82, 3, 37),(83, 3, 38),(84, 3, 39),(85, 3, 40),(86, 3, 41),(87, 3, 42),
-  (88, 3, 43),(89, 3, 44),(90, 3, 45),(91, 3, 46),(92, 3, 47),(93, 3, 48),(94, 3, 49),(95, 3, 50),
-  (96, 3, 51),(97, 3, 52),(98, 3, 53),(99, 3, 54),(100, 3, 55),(101, 3, 56),(102, 3, 57),(103, 3, 58),
-  (104, 3, 59),(105, 3, 60),(106, 3, 61),(107, 3, 62),(108, 3, 63),(109, 3, 64),(110, 3, 65),(111, 3, 66),
-
-  (112, 4, 67),(113, 4, 68),(114, 4, 69),(115, 4, 70),(116, 4, 71),(117, 4, 72),(118, 4, 73),(119, 4, 74),
-  (120, 4, 75),(121, 4, 76),(122, 4, 77),(123, 4, 78),(124, 4, 79),(125, 4, 80),(126, 4, 81),(127, 4, 82),
-  (128, 4, 83),(129, 4, 84),(130, 4, 85),
-
-  (131, 5, 86),(132, 5, 87),(133, 5, 88),(134, 5, 89),(135, 5, 90),(136, 5, 91),(137, 5, 92),(138, 5, 93),
-  (139, 5, 94),(140, 5, 95),(141, 5, 96),(142, 5, 97),(143, 5, 98),(144, 5, 99),(145, 5, 100),(146, 5, 101),
-  (147, 5, 102),(148, 5, 103),(149, 5, 104),(150, 5, 105),(151, 5, 106),(152, 5, 107),(153, 5, 108),(154, 5, 109),
-  (155, 5, 110),(156, 5, 111),(157, 5, 112),(158, 5, 113),(159, 5, 114),(160, 5, 115),(161, 5, 116),
-
-  (162, 6, 117),(163, 6, 120),(164, 6, 121),(165, 6, 122),(166, 6, 123),(167, 6, 124),(168, 6, 125),(169, 6, 126),
-  (170, 6, 127),(171, 6, 128),(172, 6, 129),(173, 6, 130),(174, 6, 131)
-`);
+    await connection.query(`
+      INSERT INTO user_branches (user_id, branch_id)
+      SELECT DISTINCT
+        u.id AS user_id,
+        b.id AS branch_id
+      FROM store_assignments sa
+      INNER JOIN users u ON u.username = sa.username
+      INNER JOIN branches b ON b.display_name = sa.store_name_brand
+      WHERE sa.username IS NOT NULL
+        AND TRIM(sa.username) <> ''
+        AND LOWER(sa.username) <> 'admin'
+        AND (u.role IS NULL OR LOWER(u.role) <> 'admin')
+      ORDER BY u.id, b.id
+    `);
 
     // ===== 4) visits =====
     await connection.query(`
@@ -601,42 +596,7 @@ await connection.query(`
         PRIMARY KEY (id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8
     `);
-   app.get("/api/rebuild-user-branches", async (req, res) => {
-  try {
-    await db.query("DELETE FROM user_branches");
 
-    await db.query(`
-      INSERT INTO user_branches (id, user_id, branch_id) VALUES
-      (46, 2, 1),(47, 2, 2),(175, 2, 3),(49, 2, 4),(50, 2, 5),(51, 2, 6),(52, 2, 7),(53, 2, 8),
-      (54, 2, 9),(55, 2, 10),(56, 2, 11),(57, 2, 12),(58, 2, 13),(59, 2, 14),(60, 2, 15),(61, 2, 16),
-      (62, 2, 17),(63, 2, 18),(64, 2, 19),(65, 2, 20),(66, 2, 21),(67, 2, 22),(68, 2, 23),(69, 2, 24),
-      (70, 2, 25),(71, 2, 26),(72, 2, 27),(73, 2, 28),(74, 2, 29),(75, 2, 30),(76, 2, 31),(77, 2, 32),
-      (78, 2, 33),(79, 2, 34),
-
-      (80, 3, 35),(81, 3, 36),(82, 3, 37),(83, 3, 38),(84, 3, 39),(85, 3, 40),(86, 3, 41),(87, 3, 42),
-      (88, 3, 43),(89, 3, 44),(90, 3, 45),(91, 3, 46),(92, 3, 47),(93, 3, 48),(94, 3, 49),(95, 3, 50),
-      (96, 3, 51),(97, 3, 52),(98, 3, 53),(99, 3, 54),(100, 3, 55),(101, 3, 56),(102, 3, 57),(103, 3, 58),
-      (104, 3, 59),(105, 3, 60),(106, 3, 61),(107, 3, 62),(108, 3, 63),(109, 3, 64),(110, 3, 65),(111, 3, 66),
-
-      (112, 4, 67),(113, 4, 68),(114, 4, 69),(115, 4, 70),(116, 4, 71),(117, 4, 72),(118, 4, 73),(119, 4, 74),
-      (120, 4, 75),(121, 4, 76),(122, 4, 77),(123, 4, 78),(124, 4, 79),(125, 4, 80),(126, 4, 81),(127, 4, 82),
-      (128, 4, 83),(129, 4, 84),(130, 4, 85),
-
-      (131, 5, 86),(132, 5, 87),(133, 5, 88),(134, 5, 89),(135, 5, 90),(136, 5, 91),(137, 5, 92),(138, 5, 93),
-      (139, 5, 94),(140, 5, 95),(141, 5, 96),(142, 5, 97),(143, 5, 98),(144, 5, 99),(145, 5, 100),(146, 5, 101),
-      (147, 5, 102),(148, 5, 103),(149, 5, 104),(150, 5, 105),(151, 5, 106),(152, 5, 107),(153, 5, 108),(154, 5, 109),
-      (155, 5, 110),(156, 5, 111),(157, 5, 112),(158, 5, 113),(159, 5, 114),(160, 5, 115),(161, 5, 116),
-
-      (162, 6, 117),(163, 6, 120),(164, 6, 121),(165, 6, 122),(166, 6, 123),(167, 6, 124),(168, 6, 125),(169, 6, 126),
-      (170, 6, 127),(171, 6, 128),(172, 6, 129),(173, 6, 130),(174, 6, 131)
-    `);
-
-    res.json({ success: true, message: "user_branches rebuilt" });
-  } catch (error) {
-    console.error("Rebuild user_branches error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
     await connection.commit();
 
     res.json({
@@ -656,7 +616,6 @@ await connection.query(`
 app.use((req, res) => {
   res.status(404).json({ error: "Endpoint not found" });
 });
-
 
 const PORT = process.env.PORT || 5000;
 

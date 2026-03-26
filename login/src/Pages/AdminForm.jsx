@@ -26,7 +26,10 @@ export default function AdminForm() {
   });
 
   const getBranchLabel = (branch) =>
-    branch?.display_name || branch?.name || branch?.branch_name || "";
+    branch?.display_name || branch?.branch_name || branch?.name || "";
+
+  const uniqueNumbers = (arr) =>
+    [...new Set((arr || []).map((n) => Number(n)).filter((n) => !Number.isNaN(n)))];
 
   const fetchData = async () => {
     try {
@@ -38,19 +41,29 @@ export default function AdminForm() {
       const usersData = resUsers.ok ? await resUsers.json() : [];
       const branchesData = resBranches.ok ? await resBranches.json() : [];
 
+      const safeBranches = Array.isArray(branchesData) ? branchesData : [];
+      const safeUsers = Array.isArray(usersData) ? usersData : [];
+
       const usersWithBranches = await Promise.all(
-        usersData.map(async (u) => {
+        safeUsers.map(async (u) => {
           try {
+            // ✅ admin ไม่มีสาขา
+            if (String(u.role).toLowerCase() === "admin") {
+              return { ...u, branches: [] };
+            }
+
             const resUb = await fetch(`${API_URL}/api/user-branches/${u.id}`);
             const ubData = resUb.ok ? await resUb.json() : [];
 
+            const branchIds = Array.isArray(ubData)
+              ? uniqueNumbers(
+                  ubData.map((item) => Number(item?.id ?? item?.branch_id))
+                )
+              : [];
+
             return {
               ...u,
-              branches: Array.isArray(ubData)
-                ? ubData
-                    .map((item) => Number(item?.id ?? item?.branch_id))
-                    .filter((id) => !Number.isNaN(id))
-                : [],
+              branches: branchIds,
             };
           } catch (e) {
             return { ...u, branches: [] };
@@ -58,8 +71,8 @@ export default function AdminForm() {
         })
       );
 
-      setUsers(Array.isArray(usersWithBranches) ? usersWithBranches : []);
-      setBranches(Array.isArray(branchesData) ? branchesData : []);
+      setUsers(usersWithBranches);
+      setBranches(safeBranches);
     } catch (err) {
       console.error("Fetch Error:", err);
     }
@@ -91,6 +104,8 @@ export default function AdminForm() {
         fetchData();
         setSuccessMessage("✨ เพิ่มพนักงานเรียบร้อย");
         setTimeout(() => setSuccessMessage(""), 2000);
+      } else {
+        alert("ไม่สามารถเพิ่มพนักงานได้");
       }
     } catch (err) {
       alert("เกิดข้อผิดพลาด");
@@ -112,14 +127,21 @@ export default function AdminForm() {
         fetchData();
         setSuccessMessage("✅ อัปเดตข้อมูลสำเร็จ");
         setTimeout(() => setSuccessMessage(""), 2000);
+      } else {
+        alert("ไม่สามารถอัปเดตข้อมูลได้");
       }
     } catch (err) {
       alert("เกิดข้อผิดพลาด");
     }
   };
 
-  const handleAddOrToggleBranch = async (userId, inputValue) => {
+  const handleAddOrToggleBranch = async (userId, inputValue, userRole) => {
     if (!inputValue) return;
+
+    if (String(userRole).toLowerCase() === "admin") {
+      alert("ผู้ดูแลระบบไม่สามารถมีสาขาได้");
+      return;
+    }
 
     let targetBranch = branches.find(
       (b) => getBranchLabel(b).trim() === inputValue.trim()
@@ -141,6 +163,11 @@ export default function AdminForm() {
       } else {
         return;
       }
+    }
+
+    if (!targetBranch?.id && !targetBranch?.branchId) {
+      alert("ไม่พบรหัสสาขา");
+      return;
     }
 
     await toggleUserBranch(userId, targetBranch.id || targetBranch.branchId);
@@ -174,7 +201,6 @@ export default function AdminForm() {
   // ==========================================
   return (
     <div style={styles.dashboard}>
-      {/* --- Sidebar Navigation --- */}
       <aside style={styles.sidebar}>
         <div style={styles.logoSection}>
           <div style={styles.logoIcon}>H</div>
@@ -202,7 +228,6 @@ export default function AdminForm() {
         </nav>
       </aside>
 
-      {/* --- Main Content Area --- */}
       <main style={styles.mainContent}>
         <header style={styles.topHeader}>
           <section>
@@ -214,7 +239,6 @@ export default function AdminForm() {
           {successMessage && <div style={styles.toast}>{successMessage}</div>}
         </header>
 
-        {/* Card: Create User */}
         <section style={styles.card}>
           <h3 style={styles.cardTitle}>➕ เพิ่มพนักงานใหม่</h3>
           <div style={styles.registrationGrid}>
@@ -260,7 +284,6 @@ export default function AdminForm() {
           </div>
         </section>
 
-        {/* Card: User Table */}
         <section style={styles.tableCard}>
           <div style={styles.tableHeaderSection}>
             <h3 style={styles.cardTitle}>📋 รายชื่อพนักงานในระบบ</h3>
@@ -297,7 +320,6 @@ export default function AdminForm() {
           </div>
         </section>
 
-        {/* --- Edit Modal --- */}
         {showEditModal && (
           <EditModal
             editUserData={editUserData}
@@ -312,7 +334,7 @@ export default function AdminForm() {
 }
 
 // ==========================================
-// 3. SUB-COMPONENTS (Clean Structure)
+// 3. SUB-COMPONENTS
 // ==========================================
 
 const UserRow = ({
@@ -326,87 +348,93 @@ const UserRow = ({
   setShowEditModal,
   deleteUser,
   getBranchLabel,
-}) => (
-  <>
-    <tr style={styles.tableRow}>
-      <td style={styles.tdMain}>
-        <div style={styles.userInfo}>
-          <div style={styles.avatar}>
-            {(u.username || "U").charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <div style={styles.uName}>{u.username}</div>
-            <div style={styles.uPass}>
-              ID: #{u.id} • PW: {u.password}
+}) => {
+  const assignedBranches =
+    u.role === "admin"
+      ? []
+      : branches.filter((b) => (u.branches || []).includes(Number(b.id)));
+
+  return (
+    <>
+      <tr style={styles.tableRow}>
+        <td style={styles.tdMain}>
+          <div style={styles.userInfo}>
+            <div style={styles.avatar}>
+              {(u.username || "U").charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={styles.uName}>{u.username}</div>
+              <div style={styles.uPass}>
+                ID: #{u.id} • PW: {u.password}
+              </div>
             </div>
           </div>
-        </div>
-      </td>
-      <td style={styles.td}>
-        <span style={u.role === "admin" ? styles.badgeAdmin : styles.badgeUser}>
-          {u.role === "admin" ? "Admin" : "Staff"}
-        </span>
-      </td>
-      <td style={styles.td}>
-        {u.role === "user" && (
-          <div style={styles.inlineAddBranch}>
-            <input
-              list={`branch-list-${u.id}`}
-              style={styles.tableInputSearch}
-              placeholder="ค้นหาสาขา..."
-              value={selectedBranchId[u.id] || ""}
-              onChange={(e) =>
-                setSelectedBranchId({
-                  ...selectedBranchId,
-                  [u.id]: e.target.value,
-                })
-              }
-            />
-            <datalist id={`branch-list-${u.id}`}>
-              {branches.map((b) => (
-                <option key={b.id} value={getBranchLabel(b)} />
-              ))}
-            </datalist>
+        </td>
+        <td style={styles.td}>
+          <span style={u.role === "admin" ? styles.badgeAdmin : styles.badgeUser}>
+            {u.role === "admin" ? "Admin" : "Staff"}
+          </span>
+        </td>
+        <td style={styles.td}>
+          {u.role === "user" ? (
+            <div style={styles.inlineAddBranch}>
+              <input
+                list={`branch-list-${u.id}`}
+                style={styles.tableInputSearch}
+                placeholder="ค้นหาสาขา..."
+                value={selectedBranchId[u.id] || ""}
+                onChange={(e) =>
+                  setSelectedBranchId({
+                    ...selectedBranchId,
+                    [u.id]: e.target.value,
+                  })
+                }
+              />
+              <datalist id={`branch-list-${u.id}`}>
+                {branches.map((b) => (
+                  <option key={b.id} value={getBranchLabel(b)} />
+                ))}
+              </datalist>
+              <button
+                style={styles.btnTableSave}
+                onClick={() =>
+                  handleAddOrToggleBranch(u.id, selectedBranchId[u.id], u.role)
+                }
+              >
+                เพิ่ม
+              </button>
+            </div>
+          ) : (
+            <span style={styles.noBranchText}>ผู้ดูแลระบบไม่มีสาขา</span>
+          )}
+        </td>
+        <td style={styles.tdAction}>
+          <div style={styles.actionGroup}>
             <button
-              style={styles.btnTableSave}
-              onClick={() =>
-                handleAddOrToggleBranch(u.id, selectedBranchId[u.id])
-              }
+              style={styles.btnEdit}
+              onClick={() => {
+                setEditUserData({
+                  id: u.id,
+                  username: u.username,
+                  password: "",
+                  role: u.role,
+                });
+                setShowEditModal(true);
+              }}
             >
-              เพิ่ม
+              แก้ไข
+            </button>
+            <button style={styles.btnDelete} onClick={() => deleteUser(u.id)}>
+              ลบ
             </button>
           </div>
-        )}
-      </td>
-      <td style={styles.tdAction}>
-        <div style={styles.actionGroup}>
-          <button
-            style={styles.btnEdit}
-            onClick={() => {
-              setEditUserData({
-                id: u.id,
-                username: u.username,
-                password: "",
-                role: u.role,
-              });
-              setShowEditModal(true);
-            }}
-          >
-            แก้ไข
-          </button>
-          <button style={styles.btnDelete} onClick={() => deleteUser(u.id)}>
-            ลบ
-          </button>
-        </div>
-      </td>
-    </tr>
-    <tr style={styles.branchRow}>
-      <td colSpan="4" style={styles.branchCell}>
-        <div style={styles.chipsContainer}>
-          {u.branches && u.branches.length > 0 ? (
-            branches
-              .filter((b) => u.branches.includes(Number(b.id)))
-              .map((b) => (
+        </td>
+      </tr>
+      <tr style={styles.branchRow}>
+        <td colSpan="4" style={styles.branchCell}>
+          <div style={styles.chipsContainer}>
+            {assignedBranches.length > 0 ? (
+              assignedBranches.map((b) => (
                 <div key={b.id} style={styles.branchChip}>
                   {getBranchLabel(b)}{" "}
                   <span
@@ -417,14 +445,19 @@ const UserRow = ({
                   </span>
                 </div>
               ))
-          ) : (
-            <span style={styles.noBranchText}>ยังไม่มีสาขาที่รับผิดชอบ</span>
-          )}
-        </div>
-      </td>
-    </tr>
-  </>
-);
+            ) : (
+              <span style={styles.noBranchText}>
+                {u.role === "admin"
+                  ? "ผู้ดูแลระบบไม่มีสาขาที่รับผิดชอบ"
+                  : "ยังไม่มีสาขาที่รับผิดชอบ"}
+              </span>
+            )}
+          </div>
+        </td>
+      </tr>
+    </>
+  );
+};
 
 const EditModal = ({
   editUserData,
@@ -494,7 +527,7 @@ const EditModal = ({
 );
 
 // ==========================================
-// 4. DESIGN SYSTEM (Styles Object)
+// 4. DESIGN SYSTEM
 // ==========================================
 const styles = {
   dashboard: {
