@@ -208,7 +208,32 @@ app.get("/api/rebuild-user-branches", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+app.get("/api/user-filter-options/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
 
+    const [rows] = await db.query(
+      `
+      SELECT DISTINCT
+        b.id,
+        b.retailer,
+        b.brand,
+        b.branch_name,
+        b.display_name
+      FROM user_branches ub
+      INNER JOIN branches b ON ub.branch_id = b.id
+      WHERE ub.user_id = ?
+      ORDER BY b.retailer ASC, b.brand ASC, b.display_name ASC
+      `,
+      [userId]
+    );
+
+    res.json(Array.isArray(rows) ? rows : []);
+  } catch (error) {
+    console.error("User filter options error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 app.get("/api/setup-all", async (req, res) => {
   const connection = await db.getConnection();
 
