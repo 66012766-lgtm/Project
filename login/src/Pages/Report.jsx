@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 // ==========================================
 // 1. MAIN COMPONENT (Logic & State)
 // ==========================================
@@ -23,8 +25,8 @@ export default function Report() {
   const fetchInitialData = async () => {
     try {
       const [resLog, resUsers] = await Promise.all([
-        fetch("http://localhost:5000/api/work_log"),
-        fetch("http://localhost:5000/api/users"),
+        fetch(`${API_URL}/api/work_log`),
+        fetch(`${API_URL}/api/users`),
       ]);
       setRows(resLog.ok ? await resLog.json() : []);
       setUsers(resUsers.ok ? await resUsers.json() : []);
@@ -37,7 +39,7 @@ export default function Report() {
     if (selUser) {
       const userObj = users.find((u) => u.username === selUser);
       if (userObj) {
-        fetch(`http://localhost:5000/api/user-filter-options/${userObj.id}`)
+        fetch(`${API_URL}/api/user-filter-options/${userObj.id}`)
           .then((res) => res.json())
           .then((data) => setMasterOptions(data))
           .catch((err) => console.error("Fetch master options error:", err));
@@ -50,7 +52,7 @@ export default function Report() {
   const handleDelete = async (id) => {
     if (!window.confirm("คุณต้องการลบรายงานนี้ใช่หรือไม่?")) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/work_log/${id}`, {
+      const res = await fetch(`${API_URL}/api/work_log/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -61,7 +63,6 @@ export default function Report() {
       console.error("Delete error:", e);
     }
   };
-
   const retailerOpts = useMemo(() => {
     const data = selUser ? masterOptions : rows;
     const unique = [...new Set(data.map((d) => d.retailer))].filter(Boolean);
@@ -256,7 +257,7 @@ const DataRow = ({ r, checked, onCheck, onDelete, onZoom }) => {
       return clean;
     }
 
-    return `http://localhost:5000/uploads/${clean}`;
+    return `${API_URL}/uploads/${clean}`;
   };
 
   const renderImgs = (data) => {

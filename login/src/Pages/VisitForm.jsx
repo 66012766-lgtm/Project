@@ -53,7 +53,7 @@ export default function VisitForm() {
 
   useEffect(() => {
     if (currentUser?.id) {
-      fetch(`http://localhost:5000/api/user-branches-list/${currentUser.id}`)
+      fetch(`${import.meta.env.VITE_API_URL}/api/user-branches-list/${currentUser.id}`)
         .then((res) => {
           if (!res.ok) throw new Error("Network response was not ok");
           return res.json();
@@ -154,7 +154,7 @@ export default function VisitForm() {
         after_images: formData.afterImages.map((img) => img.preview),
       };
 
-      const response = await fetch("http://localhost:5000/api/save-visit", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/save-visit`,  {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

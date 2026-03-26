@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 // ==========================================
 // 1. MAIN COMPONENT (Logic Only)
 // ==========================================
@@ -26,12 +28,11 @@ export default function AdminForm() {
   const getBranchLabel = (branch) =>
     branch?.display_name || branch?.name || branch?.branch_name || "";
 
-  // --- Functions ---
   const fetchData = async () => {
     try {
       const [resUsers, resBranches] = await Promise.all([
-        fetch("http://localhost:5000/api/users"),
-        fetch("http://localhost:5000/api/branches"),
+        fetch(`${API_URL}/api/users`),
+        fetch(`${API_URL}/api/branches`),
       ]);
 
       const usersData = resUsers.ok ? await resUsers.json() : [];
@@ -40,9 +41,7 @@ export default function AdminForm() {
       const usersWithBranches = await Promise.all(
         usersData.map(async (u) => {
           try {
-            const resUb = await fetch(
-              `http://localhost:5000/api/user-branches/${u.id}`
-            );
+            const resUb = await fetch(`${API_URL}/api/user-branches/${u.id}`);
             const ubData = resUb.ok ? await resUb.json() : [];
 
             return {
@@ -76,14 +75,17 @@ export default function AdminForm() {
   }, [navigate]);
 
   const addUser = async () => {
-    if (!newUser.username || !newUser.password)
+    if (!newUser.username || !newUser.password) {
       return alert("กรุณากรอกชื่อและรหัสผ่าน");
+    }
+
     try {
-      const res = await fetch("http://localhost:5000/api/users", {
+      const res = await fetch(`${API_URL}/api/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newUser),
       });
+
       if (res.ok) {
         setNewUser({ username: "", password: "", role: "user" });
         fetchData();
@@ -97,15 +99,14 @@ export default function AdminForm() {
 
   const handleUpdateUser = async () => {
     if (!editUserData.username) return alert("ชื่อผู้ใช้งานห้ามว่าง");
+
     try {
-      const res = await fetch(
-        `http://localhost:5000/api/users/${editUserData.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(editUserData),
-        }
-      );
+      const res = await fetch(`${API_URL}/api/users/${editUserData.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editUserData),
+      });
+
       if (res.ok) {
         setShowEditModal(false);
         fetchData();
@@ -125,10 +126,8 @@ export default function AdminForm() {
     );
 
     if (!targetBranch) {
-      if (
-        window.confirm(`ไม่พบสาขา "${inputValue}" ต้องการสร้างใหม่หรือไม่?`)
-      ) {
-        const res = await fetch("http://localhost:5000/api/branches", {
+      if (window.confirm(`ไม่พบสาขา "${inputValue}" ต้องการสร้างใหม่หรือไม่?`)) {
+        const res = await fetch(`${API_URL}/api/branches`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -136,20 +135,24 @@ export default function AdminForm() {
             name: inputValue.trim(),
           }),
         });
+
         targetBranch = await res.json();
         await fetchData();
-      } else return;
+      } else {
+        return;
+      }
     }
 
     await toggleUserBranch(userId, targetBranch.id || targetBranch.branchId);
   };
 
   const toggleUserBranch = async (userId, branchId) => {
-    await fetch("http://localhost:5000/api/user-branches/toggle", {
+    await fetch(`${API_URL}/api/user-branches/toggle`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, branchId: Number(branchId) }),
     });
+
     setSelectedBranchId((prev) => ({ ...prev, [userId]: "" }));
     fetchData();
     setSuccessMessage("📌 อัปเดตสาขาเรียบร้อย");
@@ -158,7 +161,11 @@ export default function AdminForm() {
 
   const deleteUser = async (id) => {
     if (!window.confirm("ต้องการลบพนักงานใช่หรือไม่?")) return;
-    await fetch(`http://localhost:5000/api/users/${id}`, { method: "DELETE" });
+
+    await fetch(`${API_URL}/api/users/${id}`, {
+      method: "DELETE",
+    });
+
     fetchData();
   };
 
