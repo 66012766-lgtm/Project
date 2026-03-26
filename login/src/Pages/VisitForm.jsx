@@ -51,22 +51,25 @@ export default function VisitForm() {
     };
   }, [navigate]);
 
-  useEffect(() => {
-    if (currentUser?.id) {
-      fetch(`${import.meta.env.VITE_API_URL}/api/user-branches-list/${currentUser.id}`)
-        .then((res) => {
-          if (!res.ok) throw new Error("Network response was not ok");
-          return res.json();
-        })
-        .then((data) => {
-          if (Array.isArray(data)) {
-            const branchNames = data.map((item) => item.display_name);
-            setVisibleBranches(branchNames);
-          }
-        })
-        .catch((err) => console.error("Error fetching branches:", err));
-    }
-  }, [currentUser]);
+useEffect(() => {
+  if (currentUser?.id) {
+    fetch(`${import.meta.env.VITE_API_URL}/api/user-branches-list/${currentUser.id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Network response was not ok");
+        return res.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          // ✅ แก้ตรงนี้
+          const branchNames = data.map(
+            (item) => item.display_name || item.branch_name || ""
+          );
+          setVisibleBranches(branchNames);
+        }
+      })
+      .catch((err) => console.error("Error fetching branches:", err));
+  }
+}, [currentUser]);
 
   useEffect(() => {
     if (!successMessage) return;
