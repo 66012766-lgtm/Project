@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -29,7 +29,27 @@ export default function AdminForm() {
     branch?.display_name || branch?.branch_name || branch?.name || "";
 
   const uniqueNumbers = (arr) =>
-    [...new Set((arr || []).map((n) => Number(n)).filter((n) => !Number.isNaN(n)))];
+    [
+      ...new Set(
+        (arr || [])
+          .map((n) => Number(n))
+          .filter((n) => !Number.isNaN(n))
+      ),
+    ];
+
+  const uniqueBranchOptions = useMemo(() => {
+    const safeBranches = Array.isArray(branches) ? branches : [];
+    const map = new Map();
+
+    safeBranches.forEach((b) => {
+      const label = getBranchLabel(b).trim();
+      if (label && !map.has(label)) {
+        map.set(label, b);
+      }
+    });
+
+    return Array.from(map.values());
+  }, [branches]);
 
   const fetchData = async () => {
     try {
@@ -47,7 +67,6 @@ export default function AdminForm() {
       const usersWithBranches = await Promise.all(
         safeUsers.map(async (u) => {
           try {
-            // ✅ admin ไม่มีสาขา
             if (String(u.role).toLowerCase() === "admin") {
               return { ...u, branches: [] };
             }
@@ -65,13 +84,25 @@ export default function AdminForm() {
               ...u,
               branches: branchIds,
             };
-          } catch (e) {
+          } catch {
             return { ...u, branches: [] };
           }
         })
       );
 
-      setUsers(usersWithBranches);
+      const uniqueUsers = Array.from(
+        new Map(
+          usersWithBranches.map((u) => [
+            u.id,
+            {
+              ...u,
+              branches: uniqueNumbers(u.branches || []),
+            },
+          ])
+        ).values()
+      );
+
+      setUsers(uniqueUsers);
       setBranches(safeBranches);
     } catch (err) {
       console.error("Fetch Error:", err);
@@ -88,7 +119,7 @@ export default function AdminForm() {
   }, [navigate]);
 
   const addUser = async () => {
-    if (!newUser.username || !newUser.password) {
+    if (!newUser.username.trim() || !newUser.password.trim()) {
       return alert("กรุณากรอกชื่อและรหัสผ่าน");
     }
 
@@ -96,54 +127,71 @@ export default function AdminForm() {
       const res = await fetch(`${API_URL}/api/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newUser),
+        body: JSON.stringify({
+          username: newUser.username.trim(),
+          password: newUser.password.trim(),
+          role: newUser.role,
+        }),
       });
+
+      const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
         setNewUser({ username: "", password: "", role: "user" });
-        fetchData();
+        await fetchData();
         setSuccessMessage("✨ เพิ่มพนักงานเรียบร้อย");
         setTimeout(() => setSuccessMessage(""), 2000);
       } else {
-        alert("ไม่สามารถเพิ่มพนักงานได้");
+        alert(data?.error || "ไม่สามารถเพิ่มพนักงานได้");
       }
     } catch (err) {
+      console.error("Add user error:", err);
       alert("เกิดข้อผิดพลาด");
     }
   };
 
   const handleUpdateUser = async () => {
-    if (!editUserData.username) return alert("ชื่อผู้ใช้งานห้ามว่าง");
+    if (!editUserData.username.trim()) {
+      return alert("ชื่อผู้ใช้งานห้ามว่าง");
+    }
 
     try {
       const res = await fetch(`${API_URL}/api/users/${editUserData.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editUserData),
+        body: JSON.stringify({
+          ...editUserData,
+          username: editUserData.username.trim(),
+          password: editUserData.password,
+          role: editUserData.role,
+        }),
       });
+
+      const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
         setShowEditModal(false);
-        fetchData();
+        await fetchData();
         setSuccessMessage("✅ อัปเดตข้อมูลสำเร็จ");
         setTimeout(() => setSuccessMessage(""), 2000);
       } else {
-        alert("ไม่สามารถอัปเดตข้อมูลได้");
+        alert(data?.error || "ไม่สามารถอัปเดตข้อมูลได้");
       }
     } catch (err) {
+      console.error("Update user error:", err);
       alert("เกิดข้อผิดพลาด");
     }
   };
 
   const handleAddOrToggleBranch = async (userId, inputValue, userRole) => {
-    if (!inputValue) return;
+    if (!inputValue?.trim()) return;
 
     if (String(userRole).toLowerCase() === "admin") {
       alert("ผู้ดูแลระบบไม่สามารถมีสาขาได้");
       return;
     }
 
-    let targetBranch = branches.find(
+    let targetBranch = uniqueBranchOptions.find(
       (b) => getBranchLabel(b).trim() === inputValue.trim()
     );
 
@@ -154,11 +202,11 @@ export default function AdminForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             display_name: inputValue.trim(),
-            name: inputValue.trim(),
+            branch_name: inputValue.trim(),
           }),
         });
 
-        targetBranch = await res.json();
+        targetBranch = await res.json().catch(() => null);
         await fetchData();
       } else {
         return;
@@ -174,31 +222,54 @@ export default function AdminForm() {
   };
 
   const toggleUserBranch = async (userId, branchId) => {
-    await fetch(`${API_URL}/api/user-branches/toggle`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, branchId: Number(branchId) }),
-    });
+    try {
+      const res = await fetch(`${API_URL}/api/user-branches/toggle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, branchId: Number(branchId) }),
+      });
 
-    setSelectedBranchId((prev) => ({ ...prev, [userId]: "" }));
-    fetchData();
-    setSuccessMessage("📌 อัปเดตสาขาเรียบร้อย");
-    setTimeout(() => setSuccessMessage(""), 2000);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data?.error || "อัปเดตสาขาไม่สำเร็จ");
+        return;
+      }
+
+      setSelectedBranchId((prev) => ({ ...prev, [userId]: "" }));
+      await fetchData();
+      setSuccessMessage("📌 อัปเดตสาขาเรียบร้อย");
+      setTimeout(() => setSuccessMessage(""), 2000);
+    } catch (error) {
+      console.error("Toggle branch error:", error);
+      alert("เกิดข้อผิดพลาดในการอัปเดตสาขา");
+    }
   };
 
   const deleteUser = async (id) => {
     if (!window.confirm("ต้องการลบพนักงานใช่หรือไม่?")) return;
 
-    await fetch(`${API_URL}/api/users/${id}`, {
-      method: "DELETE",
-    });
+    try {
+      const res = await fetch(`${API_URL}/api/users/${id}`, {
+        method: "DELETE",
+      });
 
-    fetchData();
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data?.error || "ลบพนักงานไม่สำเร็จ");
+        return;
+      }
+
+      await fetchData();
+      setSuccessMessage("🗑️ ลบพนักงานเรียบร้อย");
+      setTimeout(() => setSuccessMessage(""), 2000);
+    } catch (error) {
+      console.error("Delete user error:", error);
+      alert("เกิดข้อผิดพลาดในการลบพนักงาน");
+    }
   };
 
-  // ==========================================
-  // 2. RENDER (HTML Structure)
-  // ==========================================
   return (
     <div style={styles.dashboard}>
       <aside style={styles.sidebar}>
@@ -304,7 +375,7 @@ export default function AdminForm() {
                   <UserRow
                     key={u.id}
                     u={u}
-                    branches={branches}
+                    branches={uniqueBranchOptions}
                     selectedBranchId={selectedBranchId}
                     setSelectedBranchId={setSelectedBranchId}
                     handleAddOrToggleBranch={handleAddOrToggleBranch}
@@ -350,7 +421,7 @@ const UserRow = ({
   getBranchLabel,
 }) => {
   const assignedBranches =
-    u.role === "admin"
+    String(u.role).toLowerCase() === "admin"
       ? []
       : branches.filter((b) => (u.branches || []).includes(Number(b.id)));
 
@@ -371,12 +442,18 @@ const UserRow = ({
           </div>
         </td>
         <td style={styles.td}>
-          <span style={u.role === "admin" ? styles.badgeAdmin : styles.badgeUser}>
-            {u.role === "admin" ? "Admin" : "Staff"}
+          <span
+            style={
+              String(u.role).toLowerCase() === "admin"
+                ? styles.badgeAdmin
+                : styles.badgeUser
+            }
+          >
+            {String(u.role).toLowerCase() === "admin" ? "Admin" : "Staff"}
           </span>
         </td>
         <td style={styles.td}>
-          {u.role === "user" ? (
+          {String(u.role).toLowerCase() === "user" ? (
             <div style={styles.inlineAddBranch}>
               <input
                 list={`branch-list-${u.id}`}
@@ -447,7 +524,7 @@ const UserRow = ({
               ))
             ) : (
               <span style={styles.noBranchText}>
-                {u.role === "admin"
+                {String(u.role).toLowerCase() === "admin"
                   ? "ผู้ดูแลระบบไม่มีสาขาที่รับผิดชอบ"
                   : "ยังไม่มีสาขาที่รับผิดชอบ"}
               </span>
