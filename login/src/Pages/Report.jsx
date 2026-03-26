@@ -18,6 +18,23 @@ export default function Report() {
   const [masterOptions, setMasterOptions] = useState([]);
   const [checkedItems, setCheckedItems] = useState({});
 
+  const normalizeText = (value) => String(value || "").trim().toLowerCase();
+
+  const findBranchMeta = (row, options) => {
+    const safeOptions = Array.isArray(options) ? options : [];
+    const workplace = normalizeText(row?.workplace);
+    const displayName = normalizeText(row?.display_name);
+    const branchName = normalizeText(row?.branch_name);
+
+    return (
+      safeOptions.find((item) => normalizeText(item.display_name) === workplace) ||
+      safeOptions.find((item) => normalizeText(item.branch_name) === workplace) ||
+      safeOptions.find((item) => normalizeText(item.display_name) === displayName) ||
+      safeOptions.find((item) => normalizeText(item.branch_name) === branchName) ||
+      null
+    );
+  };
+
   useEffect(() => {
     fetchInitialData();
   }, []);
@@ -143,18 +160,29 @@ export default function Report() {
 
   const filteredData = useMemo(() => {
     const safeRows = Array.isArray(rows) ? rows : [];
+    const safeOptions = Array.isArray(masterOptions) ? masterOptions : [];
 
     return safeRows.filter((r) => {
-      const branchName = r.display_name || r.branch_name || r.workplace;
+      const meta = findBranchMeta(r, safeOptions);
+
+      const effectiveRetailer = r.retailer || meta?.retailer || "";
+      const effectiveBrand = r.brand || meta?.brand || "";
+      const effectiveBranch =
+        r.display_name ||
+        meta?.display_name ||
+        r.branch_name ||
+        meta?.branch_name ||
+        r.workplace ||
+        "";
 
       return (
         (!selUser || r.username === selUser) &&
-        (!selRetailer || r.retailer === selRetailer) &&
-        (!selBrand || r.brand === selBrand) &&
-        (!selBranch || branchName === selBranch)
+        (!selRetailer || effectiveRetailer === selRetailer) &&
+        (!selBrand || effectiveBrand === selBrand) &&
+        (!selBranch || effectiveBranch === selBranch)
       );
     });
-  }, [rows, selUser, selRetailer, selBrand, selBranch]);
+  }, [rows, masterOptions, selUser, selRetailer, selBrand, selBranch]);
 
   return (
     <div className="report-container">
@@ -272,6 +300,8 @@ export default function Report() {
                       }
                       onDelete={() => handleDelete(r.id)}
                       onZoom={setZoomedImage}
+                      masterOptions={masterOptions}
+                      findBranchMeta={findBranchMeta}
                     />
                   ))
                 )}
@@ -308,7 +338,19 @@ const FilterSelect = ({ label, value, options, onChange }) => {
   );
 };
 
-const DataRow = ({ r, checked, onCheck, onDelete, onZoom }) => {
+const DataRow = ({ r, checked, onCheck, onDelete, onZoom, masterOptions = [], findBranchMeta }) => {
+  const meta = typeof findBranchMeta === "function" ? findBranchMeta(r, masterOptions) : null;
+
+  const displayRetailer = r.retailer || meta?.retailer || "-";
+  const displayBrand = r.brand || meta?.brand || "-";
+  const displayBranch =
+    r.display_name ||
+    meta?.display_name ||
+    r.branch_name ||
+    meta?.branch_name ||
+    r.workplace ||
+    "-";
+
   const normalizeImageSrc = (src) => {
     if (!src) return "";
     const clean = String(src).trim();
@@ -381,11 +423,9 @@ const DataRow = ({ r, checked, onCheck, onDelete, onZoom }) => {
         <span>{r.username || "-"}</span>
       </td>
       <td className="td-location">
-        <div className="loc-retailer">{r.retailer || "-"}</div>
-        <div className="loc-name">
-          {r.display_name || r.branch_name || r.workplace || "-"}
-        </div>
-        <span className="brand-tag">{r.brand || "-"}</span>
+        <div className="loc-retailer">{displayRetailer}</div>
+        <div className="loc-name">{displayBranch}</div>
+        <span className="brand-tag">{displayBrand}</span>
       </td>
       <td className="td-issue">
         <div className="issue-desc">{r.description || "-"}</div>
