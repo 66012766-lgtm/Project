@@ -1,871 +1,830 @@
-require("dotenv").config();
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-const express = require("express");
-const cors = require("cors");
-const db = require("./db");
-const path = require("path");
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-const app = express();
+// ==========================================
+// 1. MAIN COMPONENT (Logic Only)
+// ==========================================
+export default function AdminForm() {
+  const navigate = useNavigate();
+  const [users, setUsers] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [newUser, setNewUser] = useState({
+    username: "",
+    password: "",
+    role: "user",
+  });
+  const [selectedBranchId, setSelectedBranchId] = useState({});
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editUserData, setEditUserData] = useState({
+    id: "",
+    username: "",
+    password: "",
+    role: "",
+  });
 
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
+  const getBranchLabel = (branch) =>
+    branch?.display_name || branch?.branch_name || branch?.name || "";
 
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+  const uniqueNumbers = (arr) =>
+    [...new Set((arr || []).map((n) => Number(n)).filter((n) => !Number.isNaN(n)))];
 
-app.get("/", (req, res) => {
-  res.json({ success: true, message: "API is running" });
-});
+  const fetchData = async () => {
+    try {
+      const [resUsers, resBranches] = await Promise.all([
+        fetch(`${API_URL}/api/users`),
+        fetch(`${API_URL}/api/branches`),
+      ]);
 
-// ================= LOGIN =================
-app.post("/api/login", async (req, res) => {
-  const { username, password } = req.body;
+      const usersData = resUsers.ok ? await resUsers.json() : [];
+      const branchesData = resBranches.ok ? await resBranches.json() : [];
 
-  try {
-    const [rows] = await db.query(
-      "SELECT * FROM users WHERE username = ? AND password = ?",
-      [username, password]
-    );
+      const safeBranches = Array.isArray(branchesData) ? branchesData : [];
+      const safeUsers = Array.isArray(usersData) ? usersData : [];
 
-    if (rows.length > 0) {
-      res.json({ success: true, user: rows[0] });
-    } else {
-      res.status(401).json({ success: false, message: "Invalid login" });
-    }
-  } catch (error) {
-    console.error("Login Error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+      const usersWithBranches = await Promise.all(
+        safeUsers.map(async (u) => {
+          try {
+            // ✅ admin ไม่มีสาขา
+            if (String(u.role).toLowerCase() === "admin") {
+              return { ...u, branches: [] };
+            }
 
-// ================= USERS =================
-app.get("/api/users", async (req, res) => {
-  try {
-    const [rows] = await db.query("SELECT * FROM users ORDER BY id DESC");
-    res.json(rows);
-  } catch (error) {
-    console.error("Users Error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
+            const resUb = await fetch(`${API_URL}/api/user-branches/${u.id}`);
+            const ubData = resUb.ok ? await resUb.json() : [];
 
-app.post("/api/users", async (req, res) => {
-  try {
-    const { username, password, role } = req.body;
+            const branchIds = Array.isArray(ubData)
+              ? uniqueNumbers(
+                  ubData.map((item) => Number(item?.id ?? item?.branch_id))
+                )
+              : [];
 
-    if (!username || !password) {
-      return res.status(400).json({ error: "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน" });
-    }
-
-    const cleanUsername = String(username).trim();
-    const cleanPassword = String(password).trim();
-    const cleanRole = String(role || "user").trim().toLowerCase();
-
-    const [dup] = await db.query(
-      "SELECT id FROM users WHERE username = ? LIMIT 1",
-      [cleanUsername]
-    );
-
-    if (dup.length > 0) {
-      return res.status(409).json({ error: "มีชื่อผู้ใช้นี้อยู่แล้ว" });
-    }
-
-    const [result] = await db.query(
-      "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-      [cleanUsername, cleanPassword, cleanRole]
-    );
-
-    res.json({
-      success: true,
-      id: result.insertId,
-      message: "เพิ่มพนักงานสำเร็จ",
-    });
-  } catch (error) {
-    console.error("Create user error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.put("/api/users/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { username, password, role } = req.body;
-
-    if (!username) {
-      return res.status(400).json({ error: "ชื่อผู้ใช้ห้ามว่าง" });
-    }
-
-    const cleanUsername = String(username).trim();
-    const cleanRole = String(role || "user").trim().toLowerCase();
-
-    const [dup] = await db.query(
-      "SELECT id FROM users WHERE username = ? AND id <> ? LIMIT 1",
-      [cleanUsername, id]
-    );
-
-    if (dup.length > 0) {
-      return res.status(409).json({ error: "มีชื่อผู้ใช้นี้อยู่แล้ว" });
-    }
-
-    if (password && String(password).trim() !== "") {
-      await db.query(
-        "UPDATE users SET username = ?, password = ?, role = ? WHERE id = ?",
-        [cleanUsername, String(password).trim(), cleanRole, id]
-      );
-    } else {
-      await db.query(
-        "UPDATE users SET username = ?, role = ? WHERE id = ?",
-        [cleanUsername, cleanRole, id]
-      );
-    }
-
-    if (cleanRole === "admin") {
-      await db.query("DELETE FROM user_branches WHERE user_id = ?", [id]);
-    }
-
-    res.json({ success: true, message: "อัปเดตผู้ใช้สำเร็จ" });
-  } catch (error) {
-    console.error("Update user error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.delete("/api/users/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await db.query("DELETE FROM user_branches WHERE user_id = ?", [id]);
-    await db.query("DELETE FROM work_log WHERE user_id = ?", [id]);
-    const [result] = await db.query("DELETE FROM users WHERE id = ?", [id]);
-
-    res.json({
-      success: true,
-      affectedRows: result.affectedRows,
-      message: "ลบผู้ใช้สำเร็จ",
-    });
-  } catch (error) {
-    console.error("Delete user error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ================= BRANCHES =================
-app.get("/api/branches", async (req, res) => {
-  try {
-    const [rows] = await db.query("SELECT * FROM branches ORDER BY id ASC");
-    res.json(rows);
-  } catch (error) {
-    console.error("Branches Error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/branches", async (req, res) => {
-  try {
-    const { display_name, branch_name, retailer, brand, store_name, name } = req.body;
-
-    const finalDisplay = String(display_name || name || "").trim();
-    const finalBranchName = String(branch_name || display_name || name || "").trim();
-
-    if (!finalDisplay) {
-      return res.status(400).json({ error: "ชื่อสาขาห้ามว่าง" });
-    }
-
-    const [dup] = await db.query(
-      "SELECT * FROM branches WHERE display_name = ? LIMIT 1",
-      [finalDisplay]
-    );
-
-    if (dup.length > 0) {
-      return res.json(dup[0]);
-    }
-
-    const [maxRows] = await db.query("SELECT COALESCE(MAX(id), 0) AS maxId FROM branches");
-    const nextId = Number(maxRows?.[0]?.maxId || 0) + 1;
-
-    await db.query(
-      `
-      INSERT INTO branches (id, branch_name, retailer, brand, store_name, display_name)
-      VALUES (?, ?, ?, ?, ?, ?)
-      `,
-      [
-        nextId,
-        finalBranchName,
-        retailer || null,
-        brand || null,
-        store_name || null,
-        finalDisplay,
-      ]
-    );
-
-    const [rows] = await db.query("SELECT * FROM branches WHERE id = ?", [nextId]);
-    res.json(rows[0]);
-  } catch (error) {
-    console.error("Create branch error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ================= USER BRANCHES =================
-app.get("/api/user-branches-list/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const [rows] = await db.query(
-      `
-      SELECT b.*
-      FROM user_branches ub
-      INNER JOIN branches b ON ub.branch_id = b.id
-      WHERE ub.user_id = ?
-      ORDER BY b.id ASC
-      `,
-      [userId]
-    );
-
-    res.json(rows);
-  } catch (error) {
-    console.error("User branches list error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/api/user-branches/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const [rows] = await db.query(
-      `
-      SELECT b.*
-      FROM user_branches ub
-      INNER JOIN branches b ON ub.branch_id = b.id
-      WHERE ub.user_id = ?
-      ORDER BY b.id ASC
-      `,
-      [userId]
-    );
-
-    res.json(rows);
-  } catch (error) {
-    console.error("User branches error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/user-branches/toggle", async (req, res) => {
-  try {
-    const { userId, branchId } = req.body;
-
-    if (!userId || !branchId) {
-      return res.status(400).json({ error: "missing data" });
-    }
-
-    const [userRows] = await db.query("SELECT * FROM users WHERE id = ? LIMIT 1", [userId]);
-    if (userRows.length === 0) {
-      return res.status(404).json({ error: "ไม่พบผู้ใช้" });
-    }
-
-    const user = userRows[0];
-    if (String(user.role || "").toLowerCase() === "admin") {
-      return res.status(400).json({ error: "ผู้ดูแลระบบไม่สามารถมีสาขาได้" });
-    }
-
-    const [exists] = await db.query(
-      "SELECT id FROM user_branches WHERE user_id = ? AND branch_id = ? LIMIT 1",
-      [userId, branchId]
-    );
-
-    if (exists.length > 0) {
-      await db.query(
-        "DELETE FROM user_branches WHERE user_id = ? AND branch_id = ?",
-        [userId, branchId]
-      );
-      return res.json({ success: true, action: "removed" });
-    }
-
-    await db.query(
-      "INSERT INTO user_branches (user_id, branch_id) VALUES (?, ?)",
-      [userId, branchId]
-    );
-
-    res.json({ success: true, action: "added" });
-  } catch (error) {
-    console.error("Toggle user branch error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/api/user-filter-options/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const [rows] = await db.query(
-      `
-      SELECT DISTINCT
-        b.id,
-        b.retailer,
-        b.brand,
-        b.branch_name,
-        b.display_name
-      FROM user_branches ub
-      INNER JOIN branches b ON ub.branch_id = b.id
-      WHERE ub.user_id = ?
-      ORDER BY b.retailer ASC, b.brand ASC, b.display_name ASC
-      `,
-      [userId]
-    );
-
-    res.json(Array.isArray(rows) ? rows : []);
-  } catch (error) {
-    console.error("User filter options error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ================= SAVE VISIT =================
-app.post("/api/save-visit", async (req, res) => {
-  const {
-    userId,
-    workplace,
-    description,
-    issue_text,
-    resolution_text,
-    work_date,
-    before_images,
-    after_images,
-  } = req.body;
-
-  try {
-    let retailer = "";
-    let brand = "";
-    let branchId = null;
-
-    if (workplace) {
-      const [branchRows] = await db.query(
-        `
-        SELECT id, retailer, brand, display_name, branch_name
-        FROM branches
-        WHERE display_name = ? OR branch_name = ?
-        LIMIT 1
-        `,
-        [workplace, workplace]
+            return {
+              ...u,
+              branches: branchIds,
+            };
+          } catch (e) {
+            return { ...u, branches: [] };
+          }
+        })
       );
 
-      if (branchRows.length > 0) {
-        branchId = branchRows[0].id;
-        retailer = branchRows[0].retailer || "";
-        brand = branchRows[0].brand || "";
+      setUsers(usersWithBranches);
+      setBranches(safeBranches);
+    } catch (err) {
+      console.error("Fetch Error:", err);
+    }
+  };
+
+  useEffect(() => {
+    const currentUser = JSON.parse(localStorage.getItem("user")) || {};
+    if (!currentUser.username || currentUser.role !== "admin") {
+      navigate("/", { replace: true });
+      return;
+    }
+    fetchData();
+  }, [navigate]);
+
+  const addUser = async () => {
+    if (!newUser.username || !newUser.password) {
+      return alert("กรุณากรอกชื่อและรหัสผ่าน");
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/api/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUser),
+      });
+
+      if (res.ok) {
+        setNewUser({ username: "", password: "", role: "user" });
+        fetchData();
+        setSuccessMessage("✨ เพิ่มพนักงานเรียบร้อย");
+        setTimeout(() => setSuccessMessage(""), 2000);
+      } else {
+        alert("ไม่สามารถเพิ่มพนักงานได้");
+      }
+    } catch (err) {
+      alert("เกิดข้อผิดพลาด");
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editUserData.username) return alert("ชื่อผู้ใช้งานห้ามว่าง");
+
+    try {
+      const res = await fetch(`${API_URL}/api/users/${editUserData.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editUserData),
+      });
+
+      if (res.ok) {
+        setShowEditModal(false);
+        fetchData();
+        setSuccessMessage("✅ อัปเดตข้อมูลสำเร็จ");
+        setTimeout(() => setSuccessMessage(""), 2000);
+      } else {
+        alert("ไม่สามารถอัปเดตข้อมูลได้");
+      }
+    } catch (err) {
+      alert("เกิดข้อผิดพลาด");
+    }
+  };
+
+  const handleAddOrToggleBranch = async (userId, inputValue, userRole) => {
+    if (!inputValue) return;
+
+    if (String(userRole).toLowerCase() === "admin") {
+      alert("ผู้ดูแลระบบไม่สามารถมีสาขาได้");
+      return;
+    }
+
+    let targetBranch = branches.find(
+      (b) => getBranchLabel(b).trim() === inputValue.trim()
+    );
+
+    if (!targetBranch) {
+      if (window.confirm(`ไม่พบสาขา "${inputValue}" ต้องการสร้างใหม่หรือไม่?`)) {
+        const res = await fetch(`${API_URL}/api/branches`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            display_name: inputValue.trim(),
+            name: inputValue.trim(),
+          }),
+        });
+
+        targetBranch = await res.json();
+        await fetchData();
+      } else {
+        return;
       }
     }
 
-    const [result] = await db.query(
-      `INSERT INTO work_log
-      (user_id, branch_id, workplace, description, issue_text, resolution_text, work_date, before_images, after_images, retailer, brand)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId,
-        branchId,
-        workplace,
-        description,
-        issue_text,
-        resolution_text,
-        work_date,
-        JSON.stringify(before_images || []),
-        JSON.stringify(after_images || []),
-        retailer,
-        brand,
-      ]
-    );
+    if (!targetBranch?.id && !targetBranch?.branchId) {
+      alert("ไม่พบรหัสสาขา");
+      return;
+    }
 
-    res.json({
-      success: true,
-      message: "บันทึกข้อมูลและรูปภาพสำเร็จ!",
-      id: result.insertId,
+    await toggleUserBranch(userId, targetBranch.id || targetBranch.branchId);
+  };
+
+  const toggleUserBranch = async (userId, branchId) => {
+    await fetch(`${API_URL}/api/user-branches/toggle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, branchId: Number(branchId) }),
     });
-  } catch (error) {
-    console.error("Save Visit Error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
 
-// ================= WORK LOG =================
-app.get("/api/work_log", async (req, res) => {
-  try {
-    const [logs] = await db.query(`
-      SELECT
-        wl.*,
-        u.username,
-        b.display_name,
-        b.branch_name
-      FROM work_log wl
-      LEFT JOIN users u ON wl.user_id = u.id
-      LEFT JOIN branches b ON wl.branch_id = b.id
-      ORDER BY wl.work_date DESC, wl.id DESC
-    `);
+    setSelectedBranchId((prev) => ({ ...prev, [userId]: "" }));
+    fetchData();
+    setSuccessMessage("📌 อัปเดตสาขาเรียบร้อย");
+    setTimeout(() => setSuccessMessage(""), 2000);
+  };
 
-    res.json(logs);
-  } catch (error) {
-    console.error("Work log Error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  const deleteUser = async (id) => {
+    if (!window.confirm("ต้องการลบพนักงานใช่หรือไม่?")) return;
 
-app.delete("/api/work_log/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const [result] = await db.query(
-      "DELETE FROM work_log WHERE id = ?",
-      [id]
-    );
-
-    res.json({
-      success: true,
-      affectedRows: result.affectedRows,
+    await fetch(`${API_URL}/api/users/${id}`, {
+      method: "DELETE",
     });
-  } catch (error) {
-    console.error("Delete error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
-// ================= REBUILD USER BRANCHES =================
-app.get("/api/rebuild-user-branches", async (req, res) => {
-  try {
-    await db.query("DELETE FROM user_branches");
+    fetchData();
+  };
 
-    await db.query(`
-      INSERT INTO user_branches (user_id, branch_id)
-      SELECT DISTINCT
-        u.id AS user_id,
-        b.id AS branch_id
-      FROM store_assignments sa
-      INNER JOIN users u ON u.username = sa.username
-      INNER JOIN branches b ON b.display_name = sa.store_name_brand
-      WHERE sa.username IS NOT NULL
-        AND TRIM(sa.username) <> ''
-        AND LOWER(sa.username) <> 'admin'
-        AND (u.role IS NULL OR LOWER(u.role) <> 'admin')
-      ORDER BY u.id, b.id
-    `);
+  // ==========================================
+  // 2. RENDER (HTML Structure)
+  // ==========================================
+  return (
+    <div style={styles.dashboard}>
+      <aside style={styles.sidebar}>
+        <div style={styles.logoSection}>
+          <div style={styles.logoIcon}>H</div>
+          <span style={styles.logoText}>
+            HR <br />
+            <small style={styles.logoSub}>ADMIN PANEL</small>
+          </span>
+        </div>
 
-    res.json({ success: true, message: "user_branches rebuilt" });
-  } catch (error) {
-    console.error("Rebuild user_branches error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+        <nav style={styles.nav}>
+          <div style={styles.navItemActive}>👥 จัดการพนักงาน</div>
+          <div style={styles.navItem} onClick={() => navigate("/report")}>
+            📊 รายงานสรุป
+          </div>
+          <div style={styles.divider}></div>
+          <div
+            style={styles.navItemLogout}
+            onClick={() => {
+              localStorage.clear();
+              navigate("/");
+            }}
+          >
+            🚪 ออกจากระบบ
+          </div>
+        </nav>
+      </aside>
 
-// ================= SETUP ALL =================
-app.get("/api/setup-all", async (req, res) => {
-  const connection = await db.getConnection();
+      <main style={styles.mainContent}>
+        <header style={styles.topHeader}>
+          <section>
+            <h2 style={styles.pageTitle}>User Management</h2>
+            <p style={styles.subTitle}>
+              จัดการรายชื่อพนักงานและสิทธิ์การเข้าถึงสาขา
+            </p>
+          </section>
+          {successMessage && <div style={styles.toast}>{successMessage}</div>}
+        </header>
 
-  try {
-    await connection.beginTransaction();
+        <section style={styles.card}>
+          <h3 style={styles.cardTitle}>➕ เพิ่มพนักงานใหม่</h3>
+          <div style={styles.registrationGrid}>
+            <div style={styles.inputField}>
+              <label style={styles.label}>ชื่อผู้ใช้งาน</label>
+              <input
+                style={styles.input}
+                placeholder="เช่น somchai_k"
+                value={newUser.username}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, username: e.target.value })
+                }
+              />
+            </div>
+            <div style={styles.inputField}>
+              <label style={styles.label}>รหัสผ่าน</label>
+              <input
+                style={styles.input}
+                type="password"
+                placeholder="••••••••"
+                value={newUser.password}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, password: e.target.value })
+                }
+              />
+            </div>
+            <div style={styles.inputField}>
+              <label style={styles.label}>สิทธิ์การใช้งาน</label>
+              <select
+                style={styles.input}
+                value={newUser.role}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, role: e.target.value })
+                }
+              >
+                <option value="user">Staff (พนักงาน)</option>
+                <option value="admin">Administrator (ผู้ดูแล)</option>
+              </select>
+            </div>
+            <button style={styles.btnCreate} onClick={addUser}>
+              บันทึกข้อมูล
+            </button>
+          </div>
+        </section>
 
-    await connection.query(`DROP TABLE IF EXISTS user_branches`);
-    await connection.query(`DROP TABLE IF EXISTS store_assignments`);
-    await connection.query(`DROP TABLE IF EXISTS work_log`);
-    await connection.query(`DROP TABLE IF EXISTS visits`);
-    await connection.query(`DROP TABLE IF EXISTS branches`);
+        <section style={styles.tableCard}>
+          <div style={styles.tableHeaderSection}>
+            <h3 style={styles.cardTitle}>📋 รายชื่อพนักงานในระบบ</h3>
+          </div>
 
-    await connection.query(`
-      CREATE TABLE branches (
-        id INT(11) NOT NULL,
-        branch_name VARCHAR(150) NOT NULL,
-        retailer VARCHAR(100) DEFAULT NULL,
-        brand VARCHAR(100) DEFAULT NULL,
-        store_name VARCHAR(255) DEFAULT NULL,
-        display_name VARCHAR(255) DEFAULT NULL,
-        PRIMARY KEY (id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-    `);
+          <div style={styles.tableScroll}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={styles.tableHeaderRow}>
+                  <th style={styles.thMain}>ข้อมูลพนักงาน</th>
+                  <th style={styles.th}>สถานะ</th>
+                  <th style={styles.th}>เพิ่มสาขา</th>
+                  <th style={styles.thAction}>จัดการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <UserRow
+                    key={u.id}
+                    u={u}
+                    branches={branches}
+                    selectedBranchId={selectedBranchId}
+                    setSelectedBranchId={setSelectedBranchId}
+                    handleAddOrToggleBranch={handleAddOrToggleBranch}
+                    toggleUserBranch={toggleUserBranch}
+                    setEditUserData={setEditUserData}
+                    setShowEditModal={setShowEditModal}
+                    deleteUser={deleteUser}
+                    getBranchLabel={getBranchLabel}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-    await connection.query(`
-      INSERT INTO branches (id, branch_name, retailer, brand, store_name, display_name) VALUES
-      (1, 'CENTRAL - Bang Rak', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Bang Rak (Akemi)'),
-      (2, 'CENTRAL - Fashion Island', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Fashion Island (Akemi)'),
-      (3, 'CENTRAL - Khon Kaen', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Khon Kaen (Akemi)'),
-      (4, 'ROBINSON - Srinakarin', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Srinakarin (Akemi)'),
-      (5, 'ROBINSON - Chiang Mai', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Chiang Mai (Akemi)'),
-      (6, 'ROBINSON - Ayutthaya', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Ayutthaya (Akemi)'),
-      (7, 'ROBINSON - Chachoengsao', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Chachoengsao (Akemi)'),
-      (8, 'ROBINSON - Rangsit', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Rangsit (Akemi)'),
-      (9, 'ROBINSON - Sukhumvit', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Sukhumvit (Akemi)'),
-      (10, 'ROBINSON - Srisaman', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Srisaman (Akemi)'),
-      (11, 'ROBINSON - Chiang Rai', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Chiang Rai (Akemi)'),
-      (12, 'ROBINSON - Ubon Ratchathani', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Ubon Ratchathani (Akemi)'),
-      (13, 'ROBINSON - Prachin Buri', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Prachin Buri (Akemi)'),
-      (14, 'ROBINSON - Suvarnabhumi', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Suvarnabhumi (Akemi)'),
-      (15, 'ROBINSON - Rayong', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Rayong (Akemi)'),
-      (16, 'ROBINSON - Chanthaburi', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Chanthaburi (Akemi)'),
-      (17, 'ROBINSON - Thalang', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Thalang (Akemi)'),
-      (18, 'ROBINSON - Ratchaphruek', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Ratchaphruek (Akemi)'),
-      (19, 'ROBINSON - Phitsanulok', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Phitsanulok (Akemi)'),
-      (20, 'ROBINSON - Chon Buri', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Chon Buri (Akemi)'),
-      (21, 'ROBINSON - Mukdahan', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Mukdahan (Akemi)'),
-      (22, 'ROBINSON - Mahachai', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Mahachai (Akemi)'),
-      (23, 'ROBINSON - Hat Yai', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Hat Yai (Akemi)'),
-      (24, 'ROBINSON - Roi Et', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Roi Et (Akemi)'),
-      (25, 'ROBINSON - Chalong', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Chalong (Akemi)'),
-      (26, 'ROBINSON - Mae Sot', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Mae Sot (Akemi)'),
-      (27, 'ROBINSON - Kamphaeng Phet', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Kamphaeng Phet (Akemi)'),
-      (28, 'ROBINSON - Lopburi', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Lopburi (Akemi)'),
-      (29, 'ROBINSON - Surin', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Surin (Akemi)'),
-      (30, 'ROBINSON - Buri Ram', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Buri Ram (Akemi)'),
-      (31, 'ROBINSON - Nakhon Si Thammarat 2', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Nakhon Si Thammarat 2 (Akemi)'),
-      (32, 'ROBINSON - Lampang', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Lampang (Akemi)'),
-      (33, 'ROBINSON - Sakhon Nakhon', 'ROBINSON', 'Akemi', NULL, 'ROBINSON - Sakhon Nakhon (Akemi)'),
-      (34, 'CENTRAL - Rama 9', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Rama 9 (Akemi)'),
-      (35, 'BIG C - Rajdamri', 'BIG C', 'Studio One', NULL, 'BIG C - Rajdamri (Studio One)'),
-      (36, 'BIG C - Pattaya 2', 'BIG C', 'Studio One', NULL, 'BIG C - Pattaya 2 (Studio One)'),
-      (37, 'BIG C - Ratchadaphisek', 'BIG C', 'Studio One', NULL, 'BIG C - Ratchadaphisek (Studio One)'),
-      (38, 'BIG C - Pattaya 3', 'BIG C', 'Studio One', NULL, 'BIG C - Pattaya 3 (Studio One)'),
-      (39, 'BIG C - Chiang Mai 2', 'BIG C', 'Studio One', NULL, 'BIG C - Chiang Mai 2 (Studio One)'),
-      (40, 'BIG C - Mega Bangna', 'BIG C', 'Studio One', NULL, 'BIG C - Mega Bangna (Studio One)'),
-      (41, 'BIG C - Rama 4', 'BIG C', 'Studio One', NULL, 'BIG C - Rama 4 (Studio One)'),
-      (42, 'BIG C - Suksawat', 'BIG C', 'Studio One', NULL, 'BIG C - Suksawat (Studio One)'),
-      (43, 'BIG C - On Nut', 'BIG C', 'Studio One', NULL, 'BIG C - On Nut (Studio One)'),
-      (44, 'BIG C - Itsaraphap', 'BIG C', 'Studio One', NULL, 'BIG C - Itsaraphap (Studio One)'),
-      (45, 'BIG C - Chiang Mai', 'BIG C', 'Studio One', NULL, 'BIG C - Chiang Mai (Studio One)'),
-      (46, 'BIG C - Hat Yai 2', 'BIG C', 'Studio One', NULL, 'BIG C - Hat Yai 2 (Studio One)'),
-      (47, 'BIG C - Hua Mak', 'BIG C', 'Studio One', NULL, 'BIG C - Hua Mak (Studio One)'),
-      (48, 'BIG C - Ekamai', 'BIG C', 'Studio One', NULL, 'BIG C - Ekamai (Studio One)'),
-      (49, 'BIG C - Tiwanon', 'BIG C', 'Studio One', NULL, 'BIG C - Tiwanon (Studio One)'),
-      (50, 'BIG C - Rangsit', 'BIG C', 'Studio One', NULL, 'BIG C - Rangsit (Studio One)'),
-      (51, 'BIG C - Hat Yai', 'BIG C', 'Studio One', NULL, 'BIG C - Hat Yai (Studio One)'),
-      (52, 'BIG C - Rattanathibet 2', 'BIG C', 'Studio One', NULL, 'BIG C - Rattanathibet 2 (Studio One)'),
-      (53, 'BIG C - Lat Phrao', 'BIG C', 'Studio One', NULL, 'BIG C - Lat Phrao (Studio One)'),
-      (54, 'BIG C - Bang Na', 'BIG C', 'Studio One', NULL, 'BIG C - Bang Na (Studio One)'),
-      (55, 'BIG C - Su-ngai Kolok', 'BIG C', 'Studio One', NULL, 'BIG C - Su-ngai Kolok (Studio One)'),
-      (56, 'BIG C - Pattani', 'BIG C', 'Studio One', NULL, 'BIG C - Pattani (Studio One)'),
-      (57, 'BIG C - Chaengwattana', 'BIG C', 'Studio One', NULL, 'BIG C - Chaengwattana (Studio One)'),
-      (58, 'BIG C - Phitsanulok', 'BIG C', 'Studio One', NULL, 'BIG C - Phitsanulok (Studio One)'),
-      (59, 'BIG C - Lam Luk Ka Klong 4', 'BIG C', 'Studio One', NULL, 'BIG C - Lam Luk Ka Klong 4 (Studio One)'),
-      (60, 'BIG C - Wong Sawang', 'BIG C', 'Studio One', NULL, 'BIG C - Wong Sawang (Studio One)'),
-      (61, 'BIG C - Ubon Ratchathani', 'BIG C', 'Studio One', NULL, 'BIG C - Ubon Ratchathani (Studio One)'),
-      (62, 'BIG C - Mahachai', 'BIG C', 'Studio One', NULL, 'BIG C - Mahachai (Studio One)'),
-      (63, 'BIG C - Yala', 'BIG C', 'Studio One', NULL, 'BIG C - Yala (Studio One)'),
-      (64, 'LOTUS - Pattaya South', 'LOTUS', 'Studio One', NULL, 'LOTUS - Pattaya South (Studio One)'),
-      (65, 'LOTUS - Laksi', 'LOTUS', 'Studio One', NULL, 'LOTUS - Laksi (Studio One)'),
-      (66, 'LOTUS - Phitsanulok', 'LOTUS', 'Studio One', NULL, 'LOTUS - Phitsanulok (Studio One)'),
-      (67, 'HOMEPRO - Ekamai-Ramintra', 'HOMEPRO', 'Akemi', NULL, 'HOMEPRO - Ekamai-Ramintra (Akemi)'),
-      (68, 'INDEX LIVING MALL - Kaset-Nawamin', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Kaset-Nawamin (Akemi)'),
-      (69, 'INDEX LIVING MALL - Udon Thani', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Udon Thani (Akemi)'),
-      (70, 'INDEX LIVING MALL - Bang Na', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Bang Na (Akemi)'),
-      (71, 'INDEX LIVING MALL - Pattaya 2', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Pattaya 2 (Akemi)'),
-      (72, 'INDEX LIVING MALL - Chiang Mai', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Chiang Mai (Akemi)'),
-      (73, 'INDEX LIVING MALL - Phuket', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Phuket (Akemi)'),
-      (74, 'INDEX LIVING MALL - Rangsit', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Rangsit (Akemi)'),
-      (75, 'INDEX LIVING MALL - Rama 2', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Rama 2 (Akemi)'),
-      (76, 'INDEX LIVING MALL - Hat Yai', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Hat Yai (Akemi)'),
-      (77, 'INDEX LIVING MALL - Ratchaphruek', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Ratchaphruek (Akemi)'),
-      (78, 'INDEX LIVING MALL - Chiang Rai', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Chiang Rai (Akemi)'),
-      (79, 'SB DESIGN SQUARE - Ratchaphruek', 'SB DESIGN SQUARE', 'Akemi', NULL, 'SB DESIGN SQUARE - Ratchaphruek (Akemi)'),
-      (80, 'SB DESIGN SQUARE - Bang Na', 'SB DESIGN SQUARE', 'Akemi', NULL, 'SB DESIGN SQUARE - Bang Na (Akemi)'),
-      (81, 'SB DESIGN SQUARE - Bang Khae', 'SB DESIGN SQUARE', 'Akemi', NULL, 'SB DESIGN SQUARE - Bang Khae (Akemi)'),
-      (82, 'SB DESIGN SQUARE - Rama 2', 'SB DESIGN SQUARE', 'Akemi', NULL, 'SB DESIGN SQUARE - Rama 2 (Akemi)'),
-      (83, 'SIAM TAKASHIMAYA - Icon Siam', 'SIAM TAKASHIMAYA', 'Akemi', NULL, 'SIAM TAKASHIMAYA - Icon Siam (Akemi)'),
-      (84, 'SIAM TAKASHIMAYA - Icon Siam (Cannon)', 'SIAM TAKASHIMAYA', 'Cannon', NULL, 'SIAM TAKASHIMAYA - Icon Siam (Cannon)'),
-      (85, 'INDEX LIVING MALL - Ubon Ratchathani 2', 'INDEX LIVING MALL', 'Akemi', NULL, 'INDEX LIVING MALL - Ubon Ratchathani 2 (Akemi)'),
-      (86, 'CENTRAL - Bang Na', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Bang Na (Akemi)'),
-      (87, 'CENTRAL - Bang Na (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Bang Na (Cannon)'),
-      (88, 'CENTRAL - Chaengwattana', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Chaengwattana (Akemi)'),
-      (89, 'CENTRAL - Chaengwattana (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Chaengwattana (Cannon)'),
-      (90, 'CENTRAL - Chiang Mai', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Chiang Mai (Akemi)'),
-      (91, 'CENTRAL - Chiang Mai (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Chiang Mai (Cannon)'),
-      (92, 'CENTRAL - Chidlom', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Chidlom (Akemi)'),
-      (93, 'CENTRAL - Chidlom (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Chidlom (Cannon)'),
-      (94, 'CENTRAL - East Ville', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - East Ville (Akemi)'),
-      (95, 'CENTRAL - East Ville (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - East Ville (Cannon)'),
-      (96, 'CENTRAL - Hat Yai Kanchana', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Hat Yai Kanchana (Akemi)'),
-      (97, 'CENTRAL - Hat Yai Kanchana (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Hat Yai Kanchana (Cannon)'),
-      (98, 'CENTRAL - Korat', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Korat (Akemi)'),
-      (99, 'CENTRAL - Lat Phrao', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Lat Phrao (Akemi)'),
-      (100, 'CENTRAL - Lat Phrao (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Lat Phrao (Cannon)'),
-      (101, 'CENTRAL - Mega Bangna', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Mega Bangna (Akemi)'),
-      (102, 'CENTRAL - Nakhon Pathom', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Nakhon Pathom (Akemi)'),
-      (103, 'CENTRAL - Nakhon Sawan', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Nakhon Sawan (Akemi)'),
-      (104, 'CENTRAL - Pattaya', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Pattaya (Akemi)'),
-      (105, 'CENTRAL - Pattaya (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Pattaya (Cannon)'),
-      (106, 'CENTRAL - Phuket', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Phuket (Akemi)'),
-      (107, 'CENTRAL - Pinklao', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Pinklao (Akemi)'),
-      (108, 'CENTRAL - Pinklao (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Pinklao (Cannon)'),
-      (109, 'CENTRAL - Ram Intra', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Ram Intra (Akemi)'),
-      (110, 'CENTRAL - Rama 2', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Rama 2 (Akemi)'),
-      (111, 'CENTRAL - Rama 3', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Rama 3 (Akemi)'),
-      (112, 'CENTRAL - Rama 3 (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Rama 3 (Cannon)'),
-      (113, 'CENTRAL - Rangsit', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Rangsit (Akemi)'),
-      (114, 'CENTRAL - Rangsit (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Rangsit (Cannon)'),
-      (115, 'CENTRAL - Salaya', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Salaya (Akemi)'),
-      (116, 'CENTRAL - Silom', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Silom (Akemi)'),
-      (117, 'CENTRAL - Udon Thani', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Udon Thani (Akemi)'),
-      (118, 'CENTRAL - Westgate', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Westgate (Akemi)'),
-      (119, 'CENTRAL - Westville', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Westville (Akemi)'),
-      (120, 'CENTRAL - Zen World', 'CENTRAL', 'Akemi', NULL, 'CENTRAL - Zen World (Akemi)'),
-      (121, 'CENTRAL - Zen World (Cannon)', 'CENTRAL', 'Cannon', NULL, 'CENTRAL - Zen World (Cannon)'),
-      (122, 'THE MALL - Paragon', 'THE MALL', 'Akemi', NULL, 'THE MALL - Paragon (Akemi)'),
-      (123, 'THE MALL - Emporium', 'THE MALL', 'Akemi', NULL, 'THE MALL - Emporium (Akemi)'),
-      (124, 'THE MALL - Emporium (Cannon)', 'THE MALL', 'Cannon', NULL, 'THE MALL - Emporium (Cannon)'),
-      (125, 'THE MALL - Bang Kapi', 'THE MALL', 'Akemi', NULL, 'THE MALL - Bang Kapi (Akemi)'),
-      (126, 'THE MALL - Bang Kapi (Cannon)', 'THE MALL', 'Cannon', NULL, 'THE MALL - Bang Kapi (Cannon)'),
-      (127, 'THE MALL - Bang Khae', 'THE MALL', 'Akemi', NULL, 'THE MALL - Bang Khae (Akemi)'),
-      (128, 'THE MALL - Bang Khae (Cannon)', 'THE MALL', 'Cannon', NULL, 'THE MALL - Bang Khae (Cannon)'),
-      (129, 'THE MALL - Tha-Pra', 'THE MALL', 'Akemi', NULL, 'THE MALL - Tha-Pra (Akemi)'),
-      (130, 'THE MALL - Ngam Wong Wan', 'THE MALL', 'Akemi', NULL, 'THE MALL - Ngam Wong Wan (Akemi)'),
-      (131, 'THE MALL - Ngam Wong Wan (Cannon)', 'THE MALL', 'Cannon', NULL, 'THE MALL - Ngam Wong Wan (Cannon)'),
-      (132, 'THE MALL - Korat', 'THE MALL', 'Akemi', NULL, 'THE MALL - Korat (Akemi)'),
-      (133, 'THE MALL - Paragon (Towel)', 'THE MALL', 'Towel', NULL, 'THE MALL - Paragon (Towel)'),
-      (134, 'THE MALL - Emporium (Towel)', 'THE MALL', 'Towel', NULL, 'THE MALL - Emporium (Towel)'),
-      (135, 'THE MALL - Bang Kapi (Towel)', 'THE MALL', 'Towel', NULL, 'THE MALL - Bang Kapi (Towel)'),
-      (136, 'THE MALL - Bang Khae (Towel)', 'THE MALL', 'Towel', NULL, 'THE MALL - Bang Khae (Towel)'),
-      (137, 'THE MALL - Ngam Wong Wan (Towel)', 'THE MALL', 'Towel', NULL, 'THE MALL - Ngam Wong Wan (Towel)')
-    `);
+        {showEditModal && (
+          <EditModal
+            editUserData={editUserData}
+            setEditUserData={setEditUserData}
+            handleUpdateUser={handleUpdateUser}
+            onClose={() => setShowEditModal(false)}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
 
-    await connection.query(`
-      CREATE TABLE store_assignments (
-        id INT(11) NOT NULL AUTO_INCREMENT,
-        retailer VARCHAR(100) DEFAULT NULL,
-        brand VARCHAR(100) DEFAULT NULL,
-        store_name VARCHAR(150) DEFAULT NULL,
-        store_name_brand VARCHAR(200) DEFAULT NULL,
-        username VARCHAR(100) DEFAULT NULL,
-        PRIMARY KEY (id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-    `);
+// ==========================================
+// 3. SUB-COMPONENTS
+// ==========================================
 
-    await connection.query(`
-      INSERT INTO store_assignments (id, retailer, brand, store_name, store_name_brand, username) VALUES
-      (1, 'CENTRAL', 'Akemi', 'CENTRAL - Bang Rak', 'CENTRAL - Bang Rak (Akemi)', 'kongkrit'),
-      (2, 'CENTRAL', 'Akemi', 'CENTRAL - Fashion Island', 'CENTRAL - Fashion Island (Akemi)', 'kongkrit'),
-      (3, 'CENTRAL', 'Akemi', 'CENTRAL - Khon Kaen', 'CENTRAL - Khon Kaen (Akemi)', 'kongkrit'),
-      (4, 'ROBINSON', 'Akemi', 'ROBINSON - Srinakarin', 'ROBINSON - Srinakarin (Akemi)', 'kongkrit'),
-      (5, 'ROBINSON', 'Akemi', 'ROBINSON - Chiang Mai', 'ROBINSON - Chiang Mai (Akemi)', 'kongkrit'),
-      (6, 'ROBINSON', 'Akemi', 'ROBINSON - Ayutthaya', 'ROBINSON - Ayutthaya (Akemi)', 'kongkrit'),
-      (7, 'ROBINSON', 'Akemi', 'ROBINSON - Chachoengsao', 'ROBINSON - Chachoengsao (Akemi)', 'kongkrit'),
-      (8, 'ROBINSON', 'Akemi', 'ROBINSON - Rangsit', 'ROBINSON - Rangsit (Akemi)', 'kongkrit'),
-      (9, 'ROBINSON', 'Akemi', 'ROBINSON - Sukhumvit', 'ROBINSON - Sukhumvit (Akemi)', 'kongkrit'),
-      (10, 'ROBINSON', 'Akemi', 'ROBINSON - Srisaman', 'ROBINSON - Srisaman (Akemi)', 'kongkrit'),
-      (11, 'ROBINSON', 'Akemi', 'ROBINSON - Chiang Rai', 'ROBINSON - Chiang Rai (Akemi)', 'kongkrit'),
-      (12, 'ROBINSON', 'Akemi', 'ROBINSON - Ubon Ratchathani', 'ROBINSON - Ubon Ratchathani (Akemi)', 'kongkrit'),
-      (13, 'ROBINSON', 'Akemi', 'ROBINSON - Prachin Buri', 'ROBINSON - Prachin Buri (Akemi)', 'kongkrit'),
-      (14, 'ROBINSON', 'Akemi', 'ROBINSON - Suvarnabhumi', 'ROBINSON - Suvarnabhumi (Akemi)', 'kongkrit'),
-      (15, 'ROBINSON', 'Akemi', 'ROBINSON - Rayong', 'ROBINSON - Rayong (Akemi)', 'kongkrit'),
-      (16, 'ROBINSON', 'Akemi', 'ROBINSON - Chanthaburi', 'ROBINSON - Chanthaburi (Akemi)', 'kongkrit'),
-      (17, 'ROBINSON', 'Akemi', 'ROBINSON - Thalang', 'ROBINSON - Thalang (Akemi)', 'kongkrit'),
-      (18, 'ROBINSON', 'Akemi', 'ROBINSON - Ratchaphruek', 'ROBINSON - Ratchaphruek (Akemi)', 'kongkrit'),
-      (19, 'ROBINSON', 'Akemi', 'ROBINSON - Phitsanulok', 'ROBINSON - Phitsanulok (Akemi)', 'kongkrit'),
-      (20, 'ROBINSON', 'Akemi', 'ROBINSON - Chon Buri', 'ROBINSON - Chon Buri (Akemi)', 'kongkrit'),
-      (21, 'ROBINSON', 'Akemi', 'ROBINSON - Mukdahan', 'ROBINSON - Mukdahan (Akemi)', 'kongkrit'),
-      (22, 'ROBINSON', 'Akemi', 'ROBINSON - Mahachai', 'ROBINSON - Mahachai (Akemi)', 'kongkrit'),
-      (23, 'ROBINSON', 'Akemi', 'ROBINSON - Hat Yai', 'ROBINSON - Hat Yai (Akemi)', 'kongkrit'),
-      (24, 'ROBINSON', 'Akemi', 'ROBINSON - Roi Et', 'ROBINSON - Roi Et (Akemi)', 'kongkrit'),
-      (25, 'ROBINSON', 'Akemi', 'ROBINSON - Chalong', 'ROBINSON - Chalong (Akemi)', 'kongkrit'),
-      (26, 'ROBINSON', 'Akemi', 'ROBINSON - Mae Sot', 'ROBINSON - Mae Sot (Akemi)', 'kongkrit'),
-      (27, 'ROBINSON', 'Akemi', 'ROBINSON - Kamphaeng Phet', 'ROBINSON - Kamphaeng Phet (Akemi)', 'kongkrit'),
-      (28, 'ROBINSON', 'Akemi', 'ROBINSON - Lopburi', 'ROBINSON - Lopburi (Akemi)', 'kongkrit'),
-      (29, 'ROBINSON', 'Akemi', 'ROBINSON - Surin', 'ROBINSON - Surin (Akemi)', 'kongkrit'),
-      (30, 'ROBINSON', 'Akemi', 'ROBINSON - Buri Ram', 'ROBINSON - Buri Ram (Akemi)', 'kongkrit'),
-      (31, 'ROBINSON', 'Akemi', 'ROBINSON - Nakhon Si Thammarat 2', 'ROBINSON - Nakhon Si Thammarat 2 (Akemi)', 'kongkrit'),
-      (32, 'ROBINSON', 'Akemi', 'ROBINSON - Lampang', 'ROBINSON - Lampang (Akemi)', 'kongkrit'),
-      (33, 'ROBINSON', 'Akemi', 'ROBINSON - Sakhon Nakhon', 'ROBINSON - Sakhon Nakhon (Akemi)', 'kongkrit'),
-      (34, 'CENTRAL', 'Akemi', 'CENTRAL - Rama 9', 'CENTRAL - Rama 9 (Akemi)', 'kongkrit'),
-      (35, 'BIG C', 'Studio One', 'BIG C - Rajdamri', 'BIG C - Rajdamri (Studio One)', 'mali'),
-      (36, 'BIG C', 'Studio One', 'BIG C - Pattaya 2', 'BIG C - Pattaya 2 (Studio One)', 'mali'),
-      (37, 'BIG C', 'Studio One', 'BIG C - Ratchadaphisek', 'BIG C - Ratchadaphisek (Studio One)', 'mali'),
-      (38, 'BIG C', 'Studio One', 'BIG C - Pattaya 3', 'BIG C - Pattaya 3 (Studio One)', 'mali'),
-      (39, 'BIG C', 'Studio One', 'BIG C - Chiang Mai 2', 'BIG C - Chiang Mai 2 (Studio One)', 'mali'),
-      (40, 'BIG C', 'Studio One', 'BIG C - Mega Bangna', 'BIG C - Mega Bangna (Studio One)', 'mali'),
-      (41, 'BIG C', 'Studio One', 'BIG C - Rama 4', 'BIG C - Rama 4 (Studio One)', 'mali'),
-      (42, 'BIG C', 'Studio One', 'BIG C - Suksawat', 'BIG C - Suksawat (Studio One)', 'mali'),
-      (43, 'BIG C', 'Studio One', 'BIG C - On Nut', 'BIG C - On Nut (Studio One)', 'mali'),
-      (44, 'BIG C', 'Studio One', 'BIG C - Itsaraphap', 'BIG C - Itsaraphap (Studio One)', 'mali'),
-      (45, 'BIG C', 'Studio One', 'BIG C - Chiang Mai', 'BIG C - Chiang Mai (Studio One)', 'mali'),
-      (46, 'BIG C', 'Studio One', 'BIG C - Hat Yai 2', 'BIG C - Hat Yai 2 (Studio One)', 'mali'),
-      (47, 'BIG C', 'Studio One', 'BIG C - Hua Mak', 'BIG C - Hua Mak (Studio One)', 'mali'),
-      (48, 'BIG C', 'Studio One', 'BIG C - Ekamai', 'BIG C - Ekamai (Studio One)', 'mali'),
-      (49, 'BIG C', 'Studio One', 'BIG C - Tiwanon', 'BIG C - Tiwanon (Studio One)', 'mali'),
-      (50, 'BIG C', 'Studio One', 'BIG C - Rangsit', 'BIG C - Rangsit (Studio One)', 'mali'),
-      (51, 'BIG C', 'Studio One', 'BIG C - Hat Yai', 'BIG C - Hat Yai (Studio One)', 'mali'),
-      (52, 'BIG C', 'Studio One', 'BIG C - Rattanathibet 2', 'BIG C - Rattanathibet 2 (Studio One)', 'mali'),
-      (53, 'BIG C', 'Studio One', 'BIG C - Lat Phrao', 'BIG C - Lat Phrao (Studio One)', 'mali'),
-      (54, 'BIG C', 'Studio One', 'BIG C - Bang Na', 'BIG C - Bang Na (Studio One)', 'mali'),
-      (55, 'BIG C', 'Studio One', 'BIG C - Su-ngai Kolok', 'BIG C - Su-ngai Kolok (Studio One)', 'mali'),
-      (56, 'BIG C', 'Studio One', 'BIG C - Pattani', 'BIG C - Pattani (Studio One)', 'mali'),
-      (57, 'BIG C', 'Studio One', 'BIG C - Chaengwattana', 'BIG C - Chaengwattana (Studio One)', 'mali'),
-      (58, 'BIG C', 'Studio One', 'BIG C - Phitsanulok', 'BIG C - Phitsanulok (Studio One)', 'mali'),
-      (59, 'BIG C', 'Studio One', 'BIG C - Lam Luk Ka Klong 4', 'BIG C - Lam Luk Ka Klong 4 (Studio One)', 'mali'),
-      (60, 'BIG C', 'Studio One', 'BIG C - Wong Sawang', 'BIG C - Wong Sawang (Studio One)', 'mali'),
-      (61, 'BIG C', 'Studio One', 'BIG C - Ubon Ratchathani', 'BIG C - Ubon Ratchathani (Studio One)', 'mali'),
-      (62, 'BIG C', 'Studio One', 'BIG C - Mahachai', 'BIG C - Mahachai (Studio One)', 'mali'),
-      (63, 'BIG C', 'Studio One', 'BIG C - Yala', 'BIG C - Yala (Studio One)', 'mali'),
-      (64, 'LOTUS', 'Studio One', 'LOTUS - Pattaya South', 'LOTUS - Pattaya South (Studio One)', 'mali'),
-      (65, 'LOTUS', 'Studio One', 'LOTUS - Laksi', 'LOTUS - Laksi (Studio One)', 'mali'),
-      (66, 'LOTUS', 'Studio One', 'LOTUS - Phitsanulok', 'LOTUS - Phitsanulok (Studio One)', 'mali'),
-      (67, 'HOMEPRO', 'Akemi', 'HOMEPRO - Ekamai-Ramintra', 'HOMEPRO - Ekamai-Ramintra (Akemi)', 'mathawee'),
-      (68, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Kaset-Nawamin', 'INDEX LIVING MALL - Kaset-Nawamin (Akemi)', 'mathawee'),
-      (69, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Udon Thani', 'INDEX LIVING MALL - Udon Thani (Akemi)', 'mathawee'),
-      (70, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Bang Na', 'INDEX LIVING MALL - Bang Na (Akemi)', 'mathawee'),
-      (71, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Pattaya 2', 'INDEX LIVING MALL - Pattaya 2 (Akemi)', 'mathawee'),
-      (72, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Chiang Mai', 'INDEX LIVING MALL - Chiang Mai (Akemi)', 'mathawee'),
-      (73, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Phuket', 'INDEX LIVING MALL - Phuket (Akemi)', 'mathawee'),
-      (74, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Rangsit', 'INDEX LIVING MALL - Rangsit (Akemi)', 'mathawee'),
-      (75, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Rama 2', 'INDEX LIVING MALL - Rama 2 (Akemi)', 'mathawee'),
-      (76, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Hat Yai', 'INDEX LIVING MALL - Hat Yai (Akemi)', 'mathawee'),
-      (77, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Ratchaphruek', 'INDEX LIVING MALL - Ratchaphruek (Akemi)', 'mathawee'),
-      (78, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Chiang Rai', 'INDEX LIVING MALL - Chiang Rai (Akemi)', 'mathawee'),
-      (79, 'SB DESIGN SQUARE', 'Akemi', 'SB DESIGN SQUARE - Ratchaphruek', 'SB DESIGN SQUARE - Ratchaphruek (Akemi)', 'mathawee'),
-      (80, 'SB DESIGN SQUARE', 'Akemi', 'SB DESIGN SQUARE - Bang Na', 'SB DESIGN SQUARE - Bang Na (Akemi)', 'mathawee'),
-      (81, 'SB DESIGN SQUARE', 'Akemi', 'SB DESIGN SQUARE - Bang Khae', 'SB DESIGN SQUARE - Bang Khae (Akemi)', 'mathawee'),
-      (82, 'SB DESIGN SQUARE', 'Akemi', 'SB DESIGN SQUARE - Rama 2', 'SB DESIGN SQUARE - Rama 2 (Akemi)', 'mathawee'),
-      (83, 'SIAM TAKASHIMAYA', 'Akemi', 'SIAM TAKASHIMAYA - Icon Siam', 'SIAM TAKASHIMAYA - Icon Siam (Akemi)', 'mathawee'),
-      (84, 'SIAM TAKASHIMAYA', 'Cannon', 'SIAM TAKASHIMAYA - Icon Siam', 'SIAM TAKASHIMAYA - Icon Siam (Cannon)', 'mathawee'),
-      (85, 'INDEX LIVING MALL', 'Akemi', 'INDEX LIVING MALL - Ubon Ratchathani 2', 'INDEX LIVING MALL - Ubon Ratchathani 2 (Akemi)', 'mathawee'),
-      (86, 'CENTRAL', 'Akemi', 'CENTRAL - Bang Na', 'CENTRAL - Bang Na (Akemi)', 'thanthaporn'),
-      (87, 'CENTRAL', 'Cannon', 'CENTRAL - Bang Na', 'CENTRAL - Bang Na (Cannon)', 'thanthaporn'),
-      (88, 'CENTRAL', 'Akemi', 'CENTRAL - Chaengwattana', 'CENTRAL - Chaengwattana (Akemi)', 'thanthaporn'),
-      (89, 'CENTRAL', 'Cannon', 'CENTRAL - Chaengwattana', 'CENTRAL - Chaengwattana (Cannon)', 'thanthaporn'),
-      (90, 'CENTRAL', 'Akemi', 'CENTRAL - Chiang Mai', 'CENTRAL - Chiang Mai (Akemi)', 'thanthaporn'),
-      (91, 'CENTRAL', 'Cannon', 'CENTRAL - Chiang Mai', 'CENTRAL - Chiang Mai (Cannon)', 'thanthaporn'),
-      (92, 'CENTRAL', 'Akemi', 'CENTRAL - Chidlom', 'CENTRAL - Chidlom (Akemi)', 'thanthaporn'),
-      (93, 'CENTRAL', 'Cannon', 'CENTRAL - Chidlom', 'CENTRAL - Chidlom (Cannon)', 'thanthaporn'),
-      (94, 'CENTRAL', 'Akemi', 'CENTRAL - East Ville', 'CENTRAL - East Ville (Akemi)', 'thanthaporn'),
-      (95, 'CENTRAL', 'Cannon', 'CENTRAL - East Ville', 'CENTRAL - East Ville (Cannon)', 'thanthaporn'),
-      (96, 'CENTRAL', 'Akemi', 'CENTRAL - Hat Yai Kanchana', 'CENTRAL - Hat Yai Kanchana (Akemi)', 'thanthaporn'),
-      (97, 'CENTRAL', 'Cannon', 'CENTRAL - Hat Yai Kanchana', 'CENTRAL - Hat Yai Kanchana (Cannon)', 'thanthaporn'),
-      (98, 'CENTRAL', 'Akemi', 'CENTRAL - Korat', 'CENTRAL - Korat (Akemi)', 'thanthaporn'),
-      (99, 'CENTRAL', 'Akemi', 'CENTRAL - Lat Phrao', 'CENTRAL - Lat Phrao (Akemi)', 'thanthaporn'),
-      (100, 'CENTRAL', 'Cannon', 'CENTRAL - Lat Phrao', 'CENTRAL - Lat Phrao (Cannon)', 'thanthaporn'),
-      (101, 'CENTRAL', 'Akemi', 'CENTRAL - Mega Bangna', 'CENTRAL - Mega Bangna (Akemi)', 'thanthaporn'),
-      (102, 'CENTRAL', 'Akemi', 'CENTRAL - Nakhon Pathom', 'CENTRAL - Nakhon Pathom (Akemi)', 'thanthaporn'),
-      (103, 'CENTRAL', 'Akemi', 'CENTRAL - Nakhon Sawan', 'CENTRAL - Nakhon Sawan (Akemi)', 'thanthaporn'),
-      (104, 'CENTRAL', 'Akemi', 'CENTRAL - Pattaya', 'CENTRAL - Pattaya (Akemi)', 'thanthaporn'),
-      (105, 'CENTRAL', 'Cannon', 'CENTRAL - Pattaya', 'CENTRAL - Pattaya (Cannon)', 'thanthaporn'),
-      (106, 'CENTRAL', 'Akemi', 'CENTRAL - Phuket', 'CENTRAL - Phuket (Akemi)', 'thanthaporn'),
-      (107, 'CENTRAL', 'Akemi', 'CENTRAL - Pinklao', 'CENTRAL - Pinklao (Akemi)', 'thanthaporn'),
-      (108, 'CENTRAL', 'Cannon', 'CENTRAL - Pinklao', 'CENTRAL - Pinklao (Cannon)', 'thanthaporn'),
-      (109, 'CENTRAL', 'Akemi', 'CENTRAL - Ram Intra', 'CENTRAL - Ram Intra (Akemi)', 'thanthaporn'),
-      (110, 'CENTRAL', 'Akemi', 'CENTRAL - Rama 2', 'CENTRAL - Rama 2 (Akemi)', 'thanthaporn'),
-      (111, 'CENTRAL', 'Akemi', 'CENTRAL - Rama 3', 'CENTRAL - Rama 3 (Akemi)', 'thanthaporn'),
-      (112, 'CENTRAL', 'Cannon', 'CENTRAL - Rama 3', 'CENTRAL - Rama 3 (Cannon)', 'thanthaporn'),
-      (113, 'CENTRAL', 'Akemi', 'CENTRAL - Rangsit', 'CENTRAL - Rangsit (Akemi)', 'thanthaporn'),
-      (114, 'CENTRAL', 'Cannon', 'CENTRAL - Rangsit', 'CENTRAL - Rangsit (Cannon)', 'thanthaporn'),
-      (115, 'CENTRAL', 'Akemi', 'CENTRAL - Salaya', 'CENTRAL - Salaya (Akemi)', 'thanthaporn'),
-      (116, 'CENTRAL', 'Akemi', 'CENTRAL - Silom', 'CENTRAL - Silom (Akemi)', 'thanthaporn'),
-      (117, 'CENTRAL', 'Akemi', 'CENTRAL - Udon Thani', 'CENTRAL - Udon Thani (Akemi)', 'thanthaporn'),
-      (118, 'CENTRAL', 'Akemi', 'CENTRAL - Westgate', 'CENTRAL - Westgate (Akemi)', 'thanthaporn'),
-      (119, 'CENTRAL', 'Akemi', 'CENTRAL - Westville', 'CENTRAL - Westville (Akemi)', 'thanthaporn'),
-      (120, 'CENTRAL', 'Akemi', 'CENTRAL - Zen World', 'CENTRAL - Zen World (Akemi)', 'thanthaporn'),
-      (121, 'CENTRAL', 'Cannon', 'CENTRAL - Zen World', 'CENTRAL - Zen World (Cannon)', 'thanthaporn'),
-      (122, 'THE MALL', 'Akemi', 'THE MALL - Paragon', 'THE MALL - Paragon (Akemi)', 'phurichaya'),
-      (123, 'THE MALL', 'Akemi', 'THE MALL - Emporium', 'THE MALL - Emporium (Akemi)', 'phurichaya'),
-      (124, 'THE MALL', 'Cannon', 'THE MALL - Emporium', 'THE MALL - Emporium (Cannon)', 'phurichaya'),
-      (125, 'THE MALL', 'Akemi', 'THE MALL - Bang Kapi', 'THE MALL - Bang Kapi (Akemi)', 'phurichaya'),
-      (126, 'THE MALL', 'Cannon', 'THE MALL - Bang Kapi', 'THE MALL - Bang Kapi (Cannon)', 'phurichaya'),
-      (127, 'THE MALL', 'Akemi', 'THE MALL - Bang Khae', 'THE MALL - Bang Khae (Akemi)', 'phurichaya'),
-      (128, 'THE MALL', 'Cannon', 'THE MALL - Bang Khae', 'THE MALL - Bang Khae (Cannon)', 'phurichaya'),
-      (129, 'THE MALL', 'Akemi', 'THE MALL - Tha-Pra', 'THE MALL - Tha-Pra (Akemi)', 'phurichaya'),
-      (130, 'THE MALL', 'Akemi', 'THE MALL - Ngam Wong Wan', 'THE MALL - Ngam Wong Wan (Akemi)', 'phurichaya'),
-      (131, 'THE MALL', 'Cannon', 'THE MALL - Ngam Wong Wan', 'THE MALL - Ngam Wong Wan (Cannon)', 'phurichaya'),
-      (132, 'THE MALL', 'Akemi', 'THE MALL - Korat', 'THE MALL - Korat (Akemi)', 'phurichaya'),
-      (133, 'THE MALL', 'Towel', 'THE MALL - Paragon', 'THE MALL - Paragon (Towel)', 'phurichaya'),
-      (134, 'THE MALL', 'Towel', 'THE MALL - Emporium', 'THE MALL - Emporium (Towel)', 'phurichaya'),
-      (135, 'THE MALL', 'Towel', 'THE MALL - Bang Kapi', 'THE MALL - Bang Kapi (Towel)', 'phurichaya'),
-      (136, 'THE MALL', 'Towel', 'THE MALL - Bang Khae', 'THE MALL - Bang Khae (Towel)', 'phurichaya'),
-      (137, 'THE MALL', 'Towel', 'THE MALL - Ngam Wong Wan', 'THE MALL - Ngam Wong Wan (Towel)', 'phurichaya'),
-      (138, NULL, NULL, NULL, 'ROBINSON - Ayutthaya (Akemi)', 'kongkrit'),
-      (139, NULL, NULL, NULL, 'ROBINSON - Saraburi (Akemi)', 'kongkrit'),
-      (140, NULL, NULL, NULL, 'ROBINSON - Lopburi (Cannon)', 'kongkrit'),
-      (141, NULL, NULL, NULL, 'CENTRAL - Ladprao (Towel)', 'mal'),
-      (142, NULL, NULL, NULL, 'CENTRAL - Rama 9 (Towel)', 'mal')
-    `);
+const UserRow = ({
+  u,
+  branches,
+  selectedBranchId,
+  setSelectedBranchId,
+  handleAddOrToggleBranch,
+  toggleUserBranch,
+  setEditUserData,
+  setShowEditModal,
+  deleteUser,
+  getBranchLabel,
+}) => {
+  const assignedBranches =
+    u.role === "admin"
+      ? []
+      : branches.filter((b) => (u.branches || []).includes(Number(b.id)));
 
-    await connection.query(`
-      CREATE TABLE user_branches (
-        id INT(11) NOT NULL AUTO_INCREMENT,
-        user_id INT(11) NOT NULL,
-        branch_id INT(11) NOT NULL,
-        PRIMARY KEY (id),
-        KEY user_id (user_id),
-        KEY branch_id (branch_id),
-        CONSTRAINT user_branches_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-        CONSTRAINT user_branches_ibfk_2 FOREIGN KEY (branch_id) REFERENCES branches (id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-    `);
+  return (
+    <>
+      <tr style={styles.tableRow}>
+        <td style={styles.tdMain}>
+          <div style={styles.userInfo}>
+            <div style={styles.avatar}>
+              {(u.username || "U").charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={styles.uName}>{u.username}</div>
+              <div style={styles.uPass}>
+                ID: #{u.id} • PW: {u.password}
+              </div>
+            </div>
+          </div>
+        </td>
+        <td style={styles.td}>
+          <span style={u.role === "admin" ? styles.badgeAdmin : styles.badgeUser}>
+            {u.role === "admin" ? "Admin" : "Staff"}
+          </span>
+        </td>
+        <td style={styles.td}>
+          {u.role === "user" ? (
+            <div style={styles.inlineAddBranch}>
+              <input
+                list={`branch-list-${u.id}`}
+                style={styles.tableInputSearch}
+                placeholder="ค้นหาสาขา..."
+                value={selectedBranchId[u.id] || ""}
+                onChange={(e) =>
+                  setSelectedBranchId({
+                    ...selectedBranchId,
+                    [u.id]: e.target.value,
+                  })
+                }
+              />
+              <datalist id={`branch-list-${u.id}`}>
+                {branches.map((b) => (
+                  <option key={b.id} value={getBranchLabel(b)} />
+                ))}
+              </datalist>
+              <button
+                style={styles.btnTableSave}
+                onClick={() =>
+                  handleAddOrToggleBranch(u.id, selectedBranchId[u.id], u.role)
+                }
+              >
+                เพิ่ม
+              </button>
+            </div>
+          ) : (
+            <span style={styles.noBranchText}>ผู้ดูแลระบบไม่มีสาขา</span>
+          )}
+        </td>
+        <td style={styles.tdAction}>
+          <div style={styles.actionGroup}>
+            <button
+              style={styles.btnEdit}
+              onClick={() => {
+                setEditUserData({
+                  id: u.id,
+                  username: u.username,
+                  password: "",
+                  role: u.role,
+                });
+                setShowEditModal(true);
+              }}
+            >
+              แก้ไข
+            </button>
+            <button style={styles.btnDelete} onClick={() => deleteUser(u.id)}>
+              ลบ
+            </button>
+          </div>
+        </td>
+      </tr>
+      <tr style={styles.branchRow}>
+        <td colSpan="4" style={styles.branchCell}>
+          <div style={styles.chipsContainer}>
+            {assignedBranches.length > 0 ? (
+              assignedBranches.map((b) => (
+                <div key={b.id} style={styles.branchChip}>
+                  {getBranchLabel(b)}{" "}
+                  <span
+                    style={styles.chipRemove}
+                    onClick={() => toggleUserBranch(u.id, b.id)}
+                  >
+                    ×
+                  </span>
+                </div>
+              ))
+            ) : (
+              <span style={styles.noBranchText}>
+                {u.role === "admin"
+                  ? "ผู้ดูแลระบบไม่มีสาขาที่รับผิดชอบ"
+                  : "ยังไม่มีสาขาที่รับผิดชอบ"}
+              </span>
+            )}
+          </div>
+        </td>
+      </tr>
+    </>
+  );
+};
 
-    await connection.query(`
-      INSERT INTO user_branches (user_id, branch_id)
-      SELECT DISTINCT
-        u.id AS user_id,
-        b.id AS branch_id
-      FROM store_assignments sa
-      INNER JOIN users u ON u.username = sa.username
-      INNER JOIN branches b ON b.display_name = sa.store_name_brand
-      WHERE sa.username IS NOT NULL
-        AND TRIM(sa.username) <> ''
-        AND LOWER(sa.username) <> 'admin'
-        AND (u.role IS NULL OR LOWER(u.role) <> 'admin')
-      ORDER BY u.id, b.id
-    `);
+const EditModal = ({
+  editUserData,
+  setEditUserData,
+  handleUpdateUser,
+  onClose,
+}) => (
+  <div style={styles.modalOverlay}>
+    <div style={styles.modalContent}>
+      <div style={styles.modalHeader}>
+        <h3 style={styles.cardTitle}>📝 แก้ไขข้อมูลพนักงาน</h3>
+        <span style={styles.modalClose} onClick={onClose}>
+          ✕
+        </span>
+      </div>
+      <div style={styles.modalBody}>
+        <div style={styles.inputField}>
+          <label style={styles.label}>ชื่อผู้ใช้งาน</label>
+          <input
+            style={styles.input}
+            value={editUserData.username}
+            onChange={(e) =>
+              setEditUserData({ ...editUserData, username: e.target.value })
+            }
+          />
+        </div>
+        <div style={styles.inputField}>
+          <label style={styles.label}>
+            รหัสผ่านใหม่ (ปล่อยว่างถ้าไม่เปลี่ยน)
+          </label>
+          <input
+            style={styles.input}
+            type="password"
+            value={editUserData.password}
+            onChange={(e) =>
+              setEditUserData({ ...editUserData, password: e.target.value })
+            }
+          />
+        </div>
+        <div style={styles.inputField}>
+          <label style={styles.label}>สิทธิ์การใช้งาน</label>
+          <select
+            style={styles.input}
+            value={editUserData.role}
+            onChange={(e) =>
+              setEditUserData({ ...editUserData, role: e.target.value })
+            }
+          >
+            <option value="user">พนักงานทั่วไป</option>
+            <option value="admin">ผู้ดูแลระบบ</option>
+          </select>
+        </div>
+        <div style={styles.modalFooter}>
+          <button
+            style={{ ...styles.btnCreate, flex: 1 }}
+            onClick={handleUpdateUser}
+          >
+            บันทึกการเปลี่ยนแปลง
+          </button>
+          <button style={styles.btnCancel} onClick={onClose}>
+            ยกเลิก
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
-    await connection.query(`
-      CREATE TABLE visits (
-        id INT(11) NOT NULL AUTO_INCREMENT,
-        name VARCHAR(255) DEFAULT NULL,
-        phone VARCHAR(50) DEFAULT NULL,
-        company VARCHAR(255) DEFAULT NULL,
-        note TEXT DEFAULT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-    `);
-
-    await connection.query(`
-      CREATE TABLE work_log (
-        id INT(11) NOT NULL AUTO_INCREMENT,
-        work_date DATE NOT NULL,
-        user_id INT(11) NOT NULL,
-        branch_id INT(11) DEFAULT NULL,
-        workplace VARCHAR(255) NOT NULL,
-        description TEXT NOT NULL,
-        issue_text TEXT NOT NULL,
-        resolution_text TEXT DEFAULT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        before_images LONGTEXT DEFAULT NULL,
-        after_images LONGTEXT DEFAULT NULL,
-        retailer VARCHAR(255) DEFAULT '',
-        brand VARCHAR(255) DEFAULT '',
-        is_checked TINYINT(1) DEFAULT 0,
-        PRIMARY KEY (id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-    `);
-
-    await connection.commit();
-
-    res.json({
-      success: true,
-      message: "Setup database complete",
-      tables: ["branches", "store_assignments", "user_branches", "visits", "work_log"]
-    });
-  } catch (error) {
-    await connection.rollback();
-    console.error("Setup Error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  } finally {
-    connection.release();
-  }
-});
-
-app.use((req, res) => {
-  res.status(404).json({ error: "Endpoint not found" });
-});
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-});
+// ==========================================
+// 4. DESIGN SYSTEM
+// ==========================================
+const styles = {
+  dashboard: {
+    display: "flex",
+    minHeight: "100vh",
+    backgroundColor: "#f8fafc",
+    fontFamily: "'Kanit', sans-serif",
+  },
+  sidebar: {
+    width: "280px",
+    backgroundColor: "#0f172a",
+    color: "#fff",
+    padding: "32px 24px",
+    boxShadow: "4px 0 10px rgba(0,0,0,0.05)",
+  },
+  logoSection: {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+    marginBottom: "48px",
+  },
+  logoIcon: {
+    background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+    width: "40px",
+    height: "40px",
+    borderRadius: "12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: "bold",
+    fontSize: "20px",
+  },
+  logoText: {
+    fontSize: "18px",
+    fontWeight: "700",
+    lineHeight: "1.2",
+    letterSpacing: "1px",
+  },
+  logoSub: { fontSize: "10px", opacity: 0.7 },
+  nav: { display: "flex", flexDirection: "column", gap: "10px" },
+  navItem: {
+    padding: "14px 18px",
+    borderRadius: "12px",
+    cursor: "pointer",
+    color: "#94a3b8",
+    transition: "0.3s",
+    fontSize: "15px",
+  },
+  navItemActive: {
+    padding: "14px 18px",
+    borderRadius: "12px",
+    backgroundColor: "#1e293b",
+    color: "#3b82f6",
+    fontWeight: "600",
+    fontSize: "15px",
+    borderLeft: "4px solid #3b82f6",
+  },
+  divider: { height: "1px", backgroundColor: "#334155", margin: "20px 0" },
+  navItemLogout: {
+    padding: "14px 18px",
+    color: "#f87171",
+    cursor: "pointer",
+    fontSize: "15px",
+  },
+  mainContent: { flex: 1, padding: "40px", overflowY: "auto" },
+  topHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: "32px",
+  },
+  pageTitle: {
+    fontSize: "28px",
+    color: "#1e293b",
+    fontWeight: "700",
+    margin: 0,
+  },
+  subTitle: { color: "#64748b", margin: "4px 0 0 0", fontSize: "14px" },
+  toast: {
+    background: "#f0fdf4",
+    color: "#16a34a",
+    padding: "10px 20px",
+    borderRadius: "12px",
+    fontSize: "14px",
+    fontWeight: "500",
+    border: "1px solid #bbf7d0",
+  },
+  card: {
+    background: "#fff",
+    borderRadius: "20px",
+    padding: "28px",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
+    marginBottom: "32px",
+    border: "1px solid #f1f5f9",
+  },
+  cardTitle: {
+    fontSize: "17px",
+    fontWeight: "600",
+    color: "#334155",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  },
+  registrationGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr auto",
+    gap: "20px",
+    alignItems: "flex-end",
+  },
+  inputField: { display: "flex", flexDirection: "column", gap: "8px" },
+  label: {
+    fontSize: "14px",
+    fontWeight: "500",
+    color: "#475569",
+    marginLeft: "4px",
+  },
+  input: {
+    border: "1.5px solid #e2e8f0",
+    padding: "12px 16px",
+    borderRadius: "12px",
+    fontSize: "14px",
+    outline: "none",
+    color: "#1e293b",
+  },
+  btnCreate: {
+    background: "#3b82f6",
+    color: "#fff",
+    border: "none",
+    padding: "12px 28px",
+    borderRadius: "12px",
+    fontWeight: "600",
+    cursor: "pointer",
+  },
+  tableCard: {
+    background: "#fff",
+    borderRadius: "20px",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
+    marginBottom: "32px",
+    border: "1px solid #f1f5f9",
+    overflow: "hidden",
+  },
+  tableHeaderSection: { padding: "24px 24px 0 24px" },
+  tableScroll: { overflowX: "auto" },
+  table: { width: "100%", borderCollapse: "collapse" },
+  tableHeaderRow: { background: "#f8fafc", borderBottom: "1px solid #f1f5f9" },
+  th: {
+    textAlign: "left",
+    padding: "16px",
+    color: "#64748b",
+    fontSize: "12px",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  thMain: {
+    textAlign: "left",
+    padding: "16px 16px 16px 24px",
+    color: "#64748b",
+    fontSize: "12px",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  thAction: {
+    textAlign: "right",
+    padding: "16px 24px 16px 16px",
+    color: "#64748b",
+    fontSize: "12px",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  tableRow: { transition: "0.2s" },
+  td: { padding: "20px 16px" },
+  tdMain: { padding: "20px 16px 20px 24px" },
+  tdAction: { padding: "20px 24px 20px 16px", textAlign: "right" },
+  userInfo: { display: "flex", alignItems: "center", gap: "15px" },
+  avatar: {
+    width: "42px",
+    height: "42px",
+    background: "#eff6ff",
+    color: "#3b82f6",
+    borderRadius: "14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: "700",
+    fontSize: "18px",
+  },
+  uName: { fontWeight: "600", color: "#1e293b", fontSize: "15px" },
+  uPass: { fontSize: "12px", color: "#94a3b8", marginTop: "2px" },
+  badgeUser: {
+    background: "#f0fdf4",
+    color: "#16a34a",
+    padding: "6px 14px",
+    borderRadius: "10px",
+    fontSize: "12px",
+    fontWeight: "600",
+  },
+  badgeAdmin: {
+    background: "#fff1f2",
+    color: "#e11d48",
+    padding: "6px 14px",
+    borderRadius: "10px",
+    fontSize: "12px",
+    fontWeight: "600",
+  },
+  inlineAddBranch: { display: "flex", gap: "8px" },
+  tableInputSearch: {
+    border: "1.5px solid #f1f5f9",
+    padding: "8px 12px",
+    borderRadius: "10px",
+    fontSize: "13px",
+    minWidth: "180px",
+    outline: "none",
+  },
+  btnTableSave: {
+    background: "#10b981",
+    color: "#fff",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: "10px",
+    fontSize: "13px",
+    cursor: "pointer",
+    fontWeight: "600",
+  },
+  actionGroup: { display: "flex", gap: "8px", justifyContent: "flex-end" },
+  branchRow: { borderBottom: "1px solid #f8fafc" },
+  branchCell: { padding: "0 24px 20px 72px" },
+  chipsContainer: { display: "flex", flexWrap: "wrap", gap: "8px" },
+  branchChip: {
+    background: "#f1f5f9",
+    color: "#475569",
+    padding: "6px 12px",
+    borderRadius: "10px",
+    fontSize: "12px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontWeight: "500",
+    border: "1px solid #e2e8f0",
+  },
+  chipRemove: { cursor: "pointer", color: "#94a3b8", fontSize: "16px" },
+  noBranchText: { color: "#cbd5e1", fontSize: "12px", fontStyle: "italic" },
+  btnEdit: {
+    background: "#f0f9ff",
+    border: "none",
+    color: "#0369a1",
+    cursor: "pointer",
+    fontWeight: "600",
+    fontSize: "13px",
+    padding: "8px 16px",
+    borderRadius: "8px",
+  },
+  btnDelete: {
+    background: "#fff1f2",
+    border: "none",
+    color: "#be123c",
+    cursor: "pointer",
+    fontWeight: "600",
+    fontSize: "13px",
+    padding: "8px 16px",
+    borderRadius: "8px",
+  },
+  btnCancel: {
+    background: "#f1f5f9",
+    color: "#64748b",
+    border: "none",
+    padding: "12px 24px",
+    borderRadius: "12px",
+    fontWeight: "600",
+    cursor: "pointer",
+    flex: 1,
+  },
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backdropFilter: "blur(4px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+  },
+  modalContent: {
+    background: "#fff",
+    padding: "32px",
+    borderRadius: "24px",
+    width: "450px",
+    boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
+  },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "20px",
+  },
+  modalClose: { cursor: "pointer", color: "#94a3b8" },
+  modalBody: { display: "flex", flexDirection: "column", gap: "18px" },
+  modalFooter: { display: "flex", gap: "10px", marginTop: "10px" },
+};
