@@ -155,6 +155,7 @@ app.delete("/api/users/:id", async (req, res) => {
 });
 
 // ================= BRANCHES =================
+// ================= BRANCHES =================
 app.get("/api/branches", async (req, res) => {
   try {
     const [rows] = await db.query("SELECT * FROM branches ORDER BY id ASC");
@@ -185,7 +186,9 @@ app.post("/api/branches", async (req, res) => {
       return res.json(dup[0]);
     }
 
-    const [maxRows] = await db.query("SELECT COALESCE(MAX(id), 0) AS maxId FROM branches");
+    const [maxRows] = await db.query(
+      "SELECT COALESCE(MAX(id), 0) AS maxId FROM branches"
+    );
     const nextId = Number(maxRows?.[0]?.maxId || 0) + 1;
 
     await db.query(
@@ -203,7 +206,11 @@ app.post("/api/branches", async (req, res) => {
       ]
     );
 
-    const [rows] = await db.query("SELECT * FROM branches WHERE id = ?", [nextId]);
+    const [rows] = await db.query(
+      "SELECT * FROM branches WHERE id = ? LIMIT 1",
+      [nextId]
+    );
+
     res.json(rows[0]);
   } catch (error) {
     console.error("Create branch error:", error);
@@ -211,6 +218,87 @@ app.post("/api/branches", async (req, res) => {
   }
 });
 
+app.put("/api/branches/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { display_name, branch_name, retailer, brand, store_name, name } = req.body;
+
+    const finalDisplay = String(display_name || name || "").trim();
+    const finalBranchName = String(branch_name || display_name || name || "").trim();
+
+    if (!finalDisplay) {
+      return res.status(400).json({ error: "ชื่อสาขาห้ามว่าง" });
+    }
+
+    const [exists] = await db.query(
+      "SELECT * FROM branches WHERE id = ? LIMIT 1",
+      [id]
+    );
+
+    if (exists.length === 0) {
+      return res.status(404).json({ error: "ไม่พบสาขา" });
+    }
+
+    const [dup] = await db.query(
+      "SELECT * FROM branches WHERE display_name = ? AND id <> ? LIMIT 1",
+      [finalDisplay, id]
+    );
+
+    if (dup.length > 0) {
+      return res.status(400).json({ error: "มีชื่อสาขานี้อยู่แล้ว" });
+    }
+
+    await db.query(
+      `
+      UPDATE branches
+      SET branch_name = ?, retailer = ?, brand = ?, store_name = ?, display_name = ?
+      WHERE id = ?
+      `,
+      [
+        finalBranchName,
+        retailer || null,
+        brand || null,
+        store_name || null,
+        finalDisplay,
+        id,
+      ]
+    );
+
+    const [rows] = await db.query(
+      "SELECT * FROM branches WHERE id = ? LIMIT 1",
+      [id]
+    );
+
+    res.json(rows[0]);
+  } catch (error) {
+    console.error("Update branch error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete("/api/branches/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [exists] = await db.query(
+      "SELECT * FROM branches WHERE id = ? LIMIT 1",
+      [id]
+    );
+
+    if (exists.length === 0) {
+      return res.status(404).json({ error: "ไม่พบสาขา" });
+    }
+
+    await db.query("DELETE FROM user_branches WHERE branch_id = ?", [id]);
+    await db.query("DELETE FROM work_log WHERE branch_id = ?", [id]);
+    await db.query("DELETE FROM branches WHERE id = ?", [id]);
+
+    res.json({ success: true, message: "ลบสาขาสำเร็จ" });
+  } catch (error) {
+    console.error("Delete branch error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 // ================= USER BRANCHES =================
 app.get("/api/user-branches-list/:userId", async (req, res) => {
   try {
