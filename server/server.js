@@ -153,8 +153,6 @@ app.delete("/api/users/:id", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-// ================= BRANCHES =================
 // ================= BRANCHES =================
 app.get("/api/branches", async (req, res) => {
   try {

@@ -3,9 +3,6 @@ import { useNavigate } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-// ==========================================
-// 1. MAIN COMPONENT (Logic Only)
-// ==========================================
 export default function AdminForm() {
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
@@ -25,8 +22,8 @@ export default function AdminForm() {
     role: "",
   });
 
-  // เพิ่มสำหรับจัดการสาขาทั้งระบบ
   const [newBranchName, setNewBranchName] = useState("");
+  const [selectedGlobalBranchId, setSelectedGlobalBranchId] = useState("");
   const [editingBranchId, setEditingBranchId] = useState(null);
   const [editingBranchName, setEditingBranchName] = useState("");
 
@@ -61,6 +58,9 @@ export default function AdminForm() {
 
     return Array.from(map.values());
   }, [branches]);
+
+  const selectedGlobalBranch =
+    uniqueBranchOptions.find((b) => Number(b.id) === Number(selectedGlobalBranchId)) || null;
 
   const fetchData = async () => {
     try {
@@ -286,9 +286,6 @@ export default function AdminForm() {
     }
   };
 
-  // =========================
-  // Global branch management
-  // =========================
   const addGlobalBranch = async () => {
     const finalName = String(newBranchName || "").trim();
     if (!finalName) {
@@ -326,6 +323,16 @@ export default function AdminForm() {
   const startEditBranch = (branch) => {
     setEditingBranchId(branch.id);
     setEditingBranchName(getBranchLabel(branch));
+    setSelectedGlobalBranchId(String(branch.id));
+  };
+
+  const beginEditSelectedBranch = () => {
+    if (!selectedGlobalBranch) {
+      alert("กรุณาเลือกสาขา");
+      return;
+    }
+    setEditingBranchId(selectedGlobalBranch.id);
+    setEditingBranchName(getBranchLabel(selectedGlobalBranch));
   };
 
   const cancelEditBranch = () => {
@@ -386,6 +393,10 @@ export default function AdminForm() {
         cancelEditBranch();
       }
 
+      if (Number(selectedGlobalBranchId) === Number(branchId)) {
+        setSelectedGlobalBranchId("");
+      }
+
       await fetchData();
       setSuccessMessage("🗑️ ลบสาขาสำเร็จ");
       setTimeout(() => setSuccessMessage(""), 2000);
@@ -393,6 +404,14 @@ export default function AdminForm() {
       console.error("Delete branch error:", error);
       alert("เกิดข้อผิดพลาดในการลบสาขา");
     }
+  };
+
+  const deleteSelectedBranch = async () => {
+    if (!selectedGlobalBranch) {
+      alert("กรุณาเลือกสาขา");
+      return;
+    }
+    await deleteGlobalBranch(selectedGlobalBranch.id, getBranchLabel(selectedGlobalBranch));
   };
 
   return (
@@ -494,68 +513,58 @@ export default function AdminForm() {
               />
             </div>
 
-            <div></div>
-            <div></div>
+            <div style={styles.inputField}>
+              <label style={styles.label}>สาขาทั้งหมด</label>
+              <select
+                style={styles.input}
+                value={selectedGlobalBranchId}
+                onChange={(e) => setSelectedGlobalBranchId(e.target.value)}
+              >
+                <option value="">-- เลือกสาขา --</option>
+                {uniqueBranchOptions.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {getBranchLabel(branch)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={styles.inputField}>
+              <label style={styles.label}>แก้ไขชื่อสาขา</label>
+              <input
+                style={styles.input}
+                placeholder="ชื่อสาขาที่จะแก้ไข"
+                value={editingBranchName}
+                onChange={(e) => setEditingBranchName(e.target.value)}
+              />
+            </div>
 
             <button style={styles.btnCreate} onClick={addGlobalBranch}>
               เพิ่มสาขา
             </button>
           </div>
 
-          <div style={styles.branchManagerList}>
-            {uniqueBranchOptions.length > 0 ? (
-              uniqueBranchOptions.map((branch) => (
-                <div key={branch.id} style={styles.branchManagerItem}>
-                  {editingBranchId === branch.id ? (
-                    <>
-                      <input
-                        style={styles.branchManagerInput}
-                        value={editingBranchName}
-                        onChange={(e) => setEditingBranchName(e.target.value)}
-                      />
-                      <div style={styles.branchManagerActions}>
-                        <button
-                          style={styles.btnTableSave}
-                          onClick={() => saveEditBranch(branch.id)}
-                        >
-                          บันทึก
-                        </button>
-                        <button
-                          style={styles.btnCancelMini}
-                          onClick={cancelEditBranch}
-                        >
-                          ยกเลิก
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={styles.branchManagerName}>
-                        {getBranchLabel(branch)}
-                      </div>
-                      <div style={styles.branchManagerActions}>
-                        <button
-                          style={styles.btnEdit}
-                          onClick={() => startEditBranch(branch)}
-                        >
-                          แก้ไข
-                        </button>
-                        <button
-                          style={styles.btnDelete}
-                          onClick={() =>
-                            deleteGlobalBranch(branch.id, getBranchLabel(branch))
-                          }
-                        >
-                          ลบ
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))
-            ) : (
-              <span style={styles.noBranchText}>ยังไม่มีสาขาในระบบ</span>
-            )}
+          <div style={styles.branchToolbar}>
+            <button style={styles.btnEdit} onClick={beginEditSelectedBranch}>
+              ดึงมาแก้ไข
+            </button>
+
+            <button
+              style={styles.btnTableSave}
+              onClick={() => {
+                if (!selectedGlobalBranchId) {
+                  alert("กรุณาเลือกสาขา");
+                  return;
+                }
+                saveEditBranch(selectedGlobalBranchId);
+              }}
+            >
+              บันทึกชื่อใหม่
+            </button>
+
+            <button style={styles.btnDelete} onClick={deleteSelectedBranch}>
+              ลบสาขา
+            </button>
           </div>
         </section>
 
@@ -607,10 +616,6 @@ export default function AdminForm() {
     </div>
   );
 }
-
-// ==========================================
-// 3. SUB-COMPONENTS
-// ==========================================
 
 const UserRow = ({
   u,
@@ -807,9 +812,6 @@ const EditModal = ({
   </div>
 );
 
-// ==========================================
-// 4. DESIGN SYSTEM
-// ==========================================
 const styles = {
   dashboard: {
     display: "flex",
@@ -932,6 +934,7 @@ const styles = {
     fontSize: "14px",
     outline: "none",
     color: "#1e293b",
+    background: "#fff",
   },
   btnCreate: {
     background: "#3b82f6",
@@ -1080,58 +1083,12 @@ const styles = {
     cursor: "pointer",
     flex: 1,
   },
-
-  // เพิ่ม styles สำหรับจัดการสาขาทั้งระบบ
-  branchManagerList: {
-    marginTop: "18px",
+  branchToolbar: {
     display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-  },
-  branchManagerItem: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "12px",
-    padding: "14px 16px",
-    border: "1px solid #e2e8f0",
-    borderRadius: "14px",
-    background: "#f8fafc",
+    gap: "10px",
+    marginTop: "16px",
     flexWrap: "wrap",
   },
-  branchManagerName: {
-    fontSize: "14px",
-    fontWeight: "600",
-    color: "#0f172a",
-    flex: 1,
-    minWidth: "260px",
-  },
-  branchManagerActions: {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-  },
-  branchManagerInput: {
-    flex: 1,
-    minWidth: "260px",
-    height: "42px",
-    borderRadius: "10px",
-    border: "1px solid #cbd5e1",
-    background: "#fff",
-    padding: "0 12px",
-    fontSize: "14px",
-    outline: "none",
-  },
-  btnCancelMini: {
-    background: "#e2e8f0",
-    color: "#334155",
-    border: "none",
-    borderRadius: "10px",
-    padding: "10px 14px",
-    fontWeight: "700",
-    cursor: "pointer",
-  },
-
   modalOverlay: {
     position: "fixed",
     top: 0,
