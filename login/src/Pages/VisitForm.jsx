@@ -296,7 +296,7 @@ useEffect(() => {
             <div style={styles.grid2}>
               <div style={styles.uploadArea}>
                 <div style={styles.uploadHeader}>
-                  <div style={styles.uploadLabel}>ภาพก่อนตรวจ (Before)</div>
+                  <div style={styles.uploadLabel}>ภาพก่อนตรวจ Before (สูงสุด5รูป)</div>
                   <label style={styles.uploadTrigger}>
                     เพิ่มรูป
                     <input
@@ -322,7 +322,7 @@ useEffect(() => {
 
               <div style={styles.uploadArea}>
                 <div style={styles.uploadHeader}>
-                  <div style={styles.uploadLabel}>ภาพหลังตรวจ (After)</div>
+                  <div style={styles.uploadLabel}>ภาพหลังตรวจ After (สูงสุด5รูป)</div>
                   <label style={styles.uploadTrigger}>
                     เพิ่มรูป
                     <input
