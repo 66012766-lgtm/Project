@@ -366,274 +366,359 @@ useEffect(() => {
 const styles = {
   page: {
     minHeight: "100vh",
-    background: "#f1f5f9",
-    padding: "40px 20px"
+    width: "100%",
+    background: "#f8fafc",
+    padding: "24px 14px 40px",
+    boxSizing: "border-box"
   },
+
   contentWrap: {
-    maxWidth: "1000px",
+    width: "100%",
+    maxWidth: "920px",
     margin: "0 auto"
   },
+
   heroCard: {
-    background: "#fff",
-    borderRadius: "32px",
-    padding: "40px",
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "20px",
+    padding: "20px",
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: "20px",
-    marginBottom: "24px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.05)"
+    alignItems: "flex-start",
+    gap: "16px",
+    flexWrap: "wrap",
+    marginBottom: "16px",
+    boxShadow: "0 4px 18px rgba(15, 23, 42, 0.04)"
   },
+
   heroContent: {
-    flex: 1
+    flex: "1 1 420px",
+    minWidth: 0
   },
+
   badgeRow: {
-    marginBottom: "16px"
+    marginBottom: "12px"
   },
+
   userBadge: {
-    background: "#f0f7ff",
-    color: "#1e40af",
-    padding: "6px 14px",
-    borderRadius: "100px",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    padding: "8px 12px",
+    borderRadius: "999px",
     fontWeight: "700",
-    fontSize: "13px"
+    fontSize: "13px",
+    border: "1px solid #bfdbfe"
   },
+
   onlineDot: {
     width: "8px",
     height: "8px",
-    background: "#10b981",
+    background: "#22c55e",
     borderRadius: "50%",
-    display: "inline-block",
-    marginRight: "8px"
+    display: "inline-block"
   },
+
   pageTitle: {
     margin: 0,
-    fontSize: "32px",
+    fontSize: "clamp(28px, 5vw, 36px)",
+    lineHeight: 1.2,
     fontWeight: "800",
-    color: "#0f172a"
+    color: "#0f172a",
+    letterSpacing: "-0.02em"
   },
+
   pageSubtitle: {
     margin: "10px 0 0",
     color: "#64748b",
-    fontSize: "14px"
+    fontSize: "14px",
+    lineHeight: 1.7,
+    maxWidth: "640px"
   },
+
   topActions: {
     display: "flex",
-    gap: "10px"
+    gap: "10px",
+    flexWrap: "wrap",
+    width: "100%"
   },
+
   reportBtn: {
-    height: "48px",
-    padding: "0 20px",
-    borderRadius: "14px",
-    border: "1px solid #e2e8f0",
-    background: "#fff",
+    flex: "1 1 140px",
+    minHeight: "46px",
+    padding: "0 16px",
+    borderRadius: "12px",
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
+    color: "#0f172a",
     fontWeight: "700",
     cursor: "pointer"
   },
+
   logoutBtn: {
-    height: "48px",
-    padding: "0 20px",
-    borderRadius: "14px",
+    flex: "1 1 140px",
+    minHeight: "46px",
+    padding: "0 16px",
+    borderRadius: "12px",
     border: "none",
-    background: "#0f172a",
-    color: "#fff",
+    background: "#2563eb",
+    color: "#ffffff",
     fontWeight: "700",
-    cursor: "pointer"
+    cursor: "pointer",
+    boxShadow: "0 6px 16px rgba(37, 99, 235, 0.18)"
   },
+
   successAlert: {
     display: "flex",
     alignItems: "center",
-    gap: "16px",
-    background: "#fff",
-    borderLeft: "6px solid #16a34a",
+    gap: "12px",
+    background: "#f0fdf4",
+    border: "1px solid #bbf7d0",
     borderRadius: "16px",
-    padding: "20px",
-    marginBottom: "24px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+    padding: "14px 16px",
+    marginBottom: "16px"
   },
+
   successIcon: {
     width: "32px",
     height: "32px",
-    borderRadius: "50%",
+    borderRadius: "999px",
     background: "#16a34a",
     color: "#fff",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    flexShrink: 0,
+    fontWeight: "800"
   },
+
   successTitle: {
     fontWeight: "800",
-    color: "#065f46"
+    color: "#166534",
+    fontSize: "14px"
   },
+
   successText: {
-    fontSize: "14px",
-    color: "#065f46"
+    fontSize: "13px",
+    color: "#166534",
+    lineHeight: 1.5
   },
+
   formGrid: {
     display: "flex",
     flexDirection: "column",
-    gap: "24px"
+    gap: "16px"
   },
+
   sectionCard: {
-    background: "#fff",
-    borderRadius: "24px",
-    padding: "32px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.02)"
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "20px",
+    padding: "20px",
+    boxShadow: "0 4px 18px rgba(15, 23, 42, 0.03)"
   },
+
   sectionHeader: {
     display: "flex",
     alignItems: "center",
-    gap: "16px",
-    marginBottom: "24px"
+    gap: "12px",
+    marginBottom: "18px"
   },
+
   iconBox: {
     width: "40px",
     height: "40px",
-    background: "#f0f7ff",
+    background: "#eff6ff",
+    border: "1px solid #dbeafe",
     borderRadius: "12px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "20px"
+    fontSize: "18px",
+    flexShrink: 0
   },
+
   sectionEyebrow: {
-    fontSize: "10px",
+    fontSize: "11px",
     fontWeight: "800",
     color: "#2563eb",
-    textTransform: "uppercase"
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    marginBottom: "2px"
   },
+
   sectionTitle: {
-    fontSize: "18px",
+    fontSize: "20px",
     fontWeight: "800",
-    color: "#0f172a"
+    color: "#0f172a",
+    lineHeight: 1.3
   },
+
   grid2: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "20px"
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: "14px"
   },
+
   fieldWrap: {
-    marginBottom: "20px"
+    marginBottom: "16px"
   },
+
   label: {
     display: "block",
     marginBottom: "8px",
     fontSize: "14px",
     fontWeight: "700",
-    color: "#475569"
+    color: "#334155"
   },
+
   required: {
     color: "#ef4444"
   },
+
   input: {
     width: "100%",
-    height: "50px",
-    background: "#f8fafc",
-    border: "1px solid #e2e8f0",
+    minHeight: "50px",
+    background: "#ffffff",
+    color: "#0f172a",
+    border: "1px solid #dbe2ea",
     borderRadius: "12px",
-    padding: "0 16px",
-    outline: "none"
+    padding: "0 14px",
+    outline: "none",
+    boxSizing: "border-box",
+    fontSize: "15px"
   },
+
   select: {
     width: "100%",
-    height: "50px",
-    background: "#f8fafc",
-    border: "1px solid #e2e8f0",
+    minHeight: "50px",
+    background: "#ffffff",
+    color: "#0f172a",
+    border: "1px solid #dbe2ea",
     borderRadius: "12px",
-    padding: "0 16px",
-    outline: "none"
+    padding: "0 14px",
+    outline: "none",
+    boxSizing: "border-box",
+    fontSize: "15px"
   },
+
   textarea: {
     width: "100%",
     minHeight: "120px",
-    background: "#f8fafc",
-    border: "1px solid #e2e8f0",
+    background: "#ffffff",
+    color: "#0f172a",
+    border: "1px solid #dbe2ea",
     borderRadius: "12px",
-    padding: "16px",
+    padding: "14px",
     outline: "none",
-    resize: "vertical"
+    resize: "vertical",
+    boxSizing: "border-box",
+    fontSize: "15px",
+    lineHeight: 1.65
   },
+
   uploadArea: {
     background: "#f8fafc",
-    borderRadius: "20px",
-    padding: "20px"
+    border: "1px dashed #cbd5e1",
+    borderRadius: "16px",
+    padding: "16px"
   },
+
   uploadHeader: {
     display: "flex",
     justifyContent: "space-between",
-    marginBottom: "16px"
+    alignItems: "center",
+    gap: "10px",
+    marginBottom: "14px",
+    flexWrap: "wrap"
   },
+
   uploadLabel: {
     fontSize: "14px",
-    fontWeight: "700"
+    fontWeight: "700",
+    color: "#334155"
   },
+
   uploadTrigger: {
     background: "#2563eb",
     color: "#fff",
-    padding: "6px 14px",
-    borderRadius: "8px",
+    padding: "8px 14px",
+    borderRadius: "10px",
     fontSize: "13px",
     fontWeight: "700",
     cursor: "pointer"
   },
+
   hiddenInput: {
     display: "none"
   },
+
   previewContainer: {
     display: "flex",
     gap: "10px",
     flexWrap: "wrap"
   },
+
   imageCard: {
     position: "relative",
-    width: "70px",
-    height: "70px",
-    borderRadius: "10px",
-    overflow: "hidden"
+    width: "76px",
+    height: "76px",
+    borderRadius: "12px",
+    overflow: "hidden",
+    border: "1px solid #e2e8f0",
+    background: "#ffffff"
   },
+
   imageThumb: {
     width: "100%",
     height: "100%",
     objectFit: "cover"
   },
+
   deleteIcon: {
     position: "absolute",
-    top: "2px",
-    right: "2px",
-    background: "#ef4444",
+    top: "5px",
+    right: "5px",
+    background: "rgba(239,68,68,0.95)",
     color: "#fff",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "999px",
     cursor: "pointer",
-    fontSize: "10px",
-    width: "18px",
-    height: "18px",
+    fontSize: "11px",
+    width: "22px",
+    height: "22px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center"
   },
+
   submitSection: {
-    marginTop: "10px"
+    marginTop: "2px"
   },
+
   submitBtn: {
     width: "100%",
-    height: "60px",
+    minHeight: "54px",
     background: "#2563eb",
     color: "#fff",
     border: "none",
-    borderRadius: "16px",
+    borderRadius: "14px",
     fontSize: "16px",
     fontWeight: "800",
     cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)"
+    boxShadow: "0 8px 18px rgba(37, 99, 235, 0.18)"
   },
+
   submitBtnDisabled: {
     width: "100%",
-    height: "60px",
+    minHeight: "54px",
     background: "#cbd5e1",
-    color: "#94a3b8",
+    color: "#64748b",
     border: "none",
-    borderRadius: "16px",
+    borderRadius: "14px",
     cursor: "not-allowed"
   }
 };
