@@ -29,7 +29,7 @@ const poolConfig = {
 
 if (process.env.NODE_ENV === "production") {
   poolConfig.ssl = {
-    rejectUnauthorized: true,
+    rejectUnauthorized: false,
   };
 }
 
