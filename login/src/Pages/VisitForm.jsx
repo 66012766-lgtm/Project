@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 export default function VisitForm() {
   const navigate = useNavigate();
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   const [currentUser, setCurrentUser] = useState(null);
   const [formConfig, setFormConfig] = useState([]);
@@ -20,9 +21,38 @@ export default function VisitForm() {
     afterImages: [],
   });
 
+  const getBranchLabel = (branch) => {
+    if (!branch) return "";
+
+    const retailer = branch.retailer || branch.Retailer || "";
+    const brand = branch.brand || branch.Brand || "";
+    const storeName =
+      branch.store_name ||
+      branch.storeName ||
+      branch["Store Name"] ||
+      branch.code
+      branch["Retailer - Store Name"] ||
+      ``
+    
+
+    return (
+      branch.name ||
+      branch.display_name ||
+      branch.branch_name ||
+      branch.branch_display_name ||
+      branch["Retailer - Store Name (Brand)"] ||
+      branch["Retailer - Store Name"] ||
+      (retailer && storeName && brand
+        ? `${retailer} - ${storeName} (${brand})`
+        : retailer && storeName
+        ? `${retailer} - ${storeName}`
+        : "")
+    );
+  };
+
   useEffect(() => {
     const loadUser = () => {
-      const savedUser = JSON.parse(localStorage.getItem("user")) || {};
+      const savedUser = JSON.parse(localStorage.getItem("user") || "{}");
       if (!savedUser.username) {
         navigate("/", { replace: true });
         return;
@@ -31,7 +61,7 @@ export default function VisitForm() {
     };
 
     const loadForm = () => {
-      const storedForm = JSON.parse(localStorage.getItem("formConfig")) || [];
+      const storedForm = JSON.parse(localStorage.getItem("formConfig") || "[]");
       setFormConfig(storedForm);
     };
 
@@ -50,27 +80,28 @@ export default function VisitForm() {
       window.removeEventListener("storage", loadForm);
     };
   }, [navigate]);
+  useEffect(() => {
+    if (!currentUser?.username) return;
 
-useEffect(() => {
-  if (currentUser?.id) {
-    fetch(`${import.meta.env.VITE_API_URL}/api/user-branches-list/${currentUser.id}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Network response was not ok");
-        return res.json();
+ fetch(
+  `${API_URL}/api/branches?username=${encodeURIComponent(
+    currentUser.username
+  )}&role=${encodeURIComponent(currentUser.role || "")}`
+).then(async (res) => {
+        const data = await res.json().catch(() => []);
+        if (!res.ok) {
+          throw new Error(data?.message || data?.error || "โหลดสาขาไม่สำเร็จ");
+        }
+        return data;
       })
       .then((data) => {
-        if (Array.isArray(data)) {
-          // ✅ แก้ตรงนี้
-          const branchNames = data.map(
-            (item) => item.display_name || item.branch_name || ""
-          );
-          setVisibleBranches(branchNames);
-        }
+        setVisibleBranches(Array.isArray(data) ? data : []);
       })
-      .catch((err) => console.error("Error fetching branches:", err));
-  }
-}, [currentUser]);
-
+      .catch((err) => {
+        console.error("Error fetching branches:", err);
+        setVisibleBranches([]);
+      });
+  }, [currentUser, API_URL]);
   useEffect(() => {
     if (!successMessage) return;
     const timer = setTimeout(() => setSuccessMessage(""), 3000);
@@ -83,10 +114,13 @@ useEffect(() => {
   };
 
   useEffect(() => {
-    if (formData["สาขา"] && !visibleBranches.includes(formData["สาขา"])) {
+    if (
+      formData["สาขา"] &&
+      !visibleBranches.some((branch) => getBranchLabel(branch) === formData["สาขา"])
+    ) {
       setFormData((prev) => ({ ...prev, สาขา: "" }));
     }
-  }, [visibleBranches, formData]);
+  }, [visibleBranches, formData["สาขา"]]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -112,17 +146,21 @@ useEffect(() => {
   const handleFileChange = async (e, fieldName) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+
     if (files.length > 5) {
       alert("แนบไฟล์ได้สูงสุด 5 ไฟล์ต่อรายการ");
       e.target.value = "";
       return;
     }
+
     try {
       const mappedFiles = await Promise.all(files.map(fileToDataUrl));
       setFormData((prev) => ({ ...prev, [fieldName]: mappedFiles }));
     } catch (error) {
+      console.error(error);
       alert("ไม่สามารถอ่านไฟล์ได้");
     }
+
     e.target.value = "";
   };
 
@@ -135,6 +173,7 @@ useEffect(() => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (
       !formData.visitDate ||
       !formData["สาขา"] ||
@@ -144,40 +183,71 @@ useEffect(() => {
       alert("กรุณากรอกข้อมูลที่มี * ให้ครบ รวมถึงแนวทางแก้ไข");
       return;
     }
+
+    const selectedBranch = visibleBranches.find(
+      (branch) => getBranchLabel(branch) === formData["สาขา"]
+    );
+
+    if (!selectedBranch) {
+      alert("ไม่พบข้อมูลสาขาที่เลือก");
+      return;
+    }
+
     setIsSubmitting(true);
+
     try {
       const payload = {
-        userId: currentUser?.id,
-        workplace: formData["สาขา"],
-        description: formData.reason,
-        issue_text: formData.problem,
-        resolution_text: formData.resolution_text,
-        work_date: formData.visitDate,
+        username: currentUser?.username || "",
+        user_id: currentUser?.id || null,
+        visit_date: formData.visitDate,
+        branch_id: selectedBranch.id || null,
+        branch_display_name: getBranchLabel(selectedBranch),
+        retailer: selectedBranch.retailer || selectedBranch.Retailer || "",
+        brand: selectedBranch.brand || selectedBranch.Brand || "",
+        store_name:
+          selectedBranch.store_name ||
+          selectedBranch.storeName ||
+          selectedBranch["Store Name"] ||
+          selectedBranch["Retailer - Store Name"] ||
+          selectedBranch.branch_name ||
+          "",
+        purpose: formData.reason || "",
+        detail: formData.problem || "",
+        solution: formData.resolution_text || "",
         before_images: formData.beforeImages.map((img) => img.preview),
         after_images: formData.afterImages.map((img) => img.preview),
       };
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/save-visit`,  {
+      console.log("save payload =>", payload);
+
+      const response = await fetch(`${API_URL}/api/save-visit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const result = await response.json();
-      if (result.success) {
-        setSuccessMessage("บันทึกข้อมูลเรียบร้อยแล้ว");
-        setFormData({
-          visitDate: "",
-          reason: "",
-          problem: "",
-          resolution_text: "",
-          สาขา: "",
-          beforeImages: [],
-          afterImages: [],
-        });
-        window.dispatchEvent(new Event("visitFormUpdated"));
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        console.error("save-visit error:", result);
+        alert(result.message || result.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+        return;
       }
+
+      setSuccessMessage("บันทึกข้อมูลเรียบร้อยแล้ว");
+      setFormData({
+        visitDate: "",
+        reason: "",
+        problem: "",
+        resolution_text: "",
+        สาขา: "",
+        beforeImages: [],
+        afterImages: [],
+      });
+
+      window.dispatchEvent(new Event("visitFormUpdated"));
     } catch (error) {
+      console.error("submit error:", error);
       alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
     } finally {
       setIsSubmitting(false);
@@ -202,7 +272,11 @@ useEffect(() => {
           </div>
           <div style={styles.topActions}>
             {currentUser?.role === "admin" && (
-              <button type="button" style={styles.reportBtn} onClick={() => navigate("/report")}>
+              <button
+                type="button"
+                style={styles.reportBtn}
+                onClick={() => navigate("/report")}
+              >
                 ดูรายงาน
               </button>
             )}
@@ -234,16 +308,40 @@ useEffect(() => {
 
             <div style={styles.grid2}>
               <div style={styles.fieldWrap}>
-                <label style={styles.label}>วันที่เข้าสาขา <span style={styles.required}>*</span></label>
-                <input type="date" name="visitDate" value={formData.visitDate} onChange={handleChange} style={styles.input} />
+                <label style={styles.label}>
+                  วันที่เข้าสาขา <span style={styles.required}>*</span>
+                </label>
+                <input
+                  type="date"
+                  name="visitDate"
+                  value={formData.visitDate}
+                  onChange={handleChange}
+                  style={styles.input}
+                />
               </div>
+
               <div style={styles.fieldWrap}>
-                <label style={styles.label}>สาขาที่เข้าปฏิบัติงาน <span style={styles.required}>*</span></label>
-                <select name="สาขา" value={formData["สาขา"]} onChange={handleChange} style={styles.select}>
+                <label style={styles.label}>
+                  สาขาที่เข้าปฏิบัติงาน <span style={styles.required}>*</span>
+                </label>
+                <select
+                  name="สาขา"
+                  value={formData["สาขา"]}
+                  onChange={handleChange}
+                  style={styles.select}
+                >
                   <option value="">กรุณาเลือกสาขา</option>
-                  {visibleBranches.map((branch) => (
-                    <option key={branch} value={branch}>{branch}</option>
-                  ))}
+                  {visibleBranches.map((branch, index) => {
+                    const label = getBranchLabel(branch);
+                    return (
+                      <option
+                        key={branch.mongo_id || branch._id || branch.id || `${label}-${index}`}
+                        value={label}
+                      >
+                        {label || `สาขา ${index + 1}`}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>
@@ -261,7 +359,9 @@ useEffect(() => {
             </div>
 
             <div style={styles.fieldWrap}>
-              <label style={styles.label}>รายละเอียดและปัญหาที่ตรวจพบ <span style={styles.required}>*</span></label>
+              <label style={styles.label}>
+                รายละเอียดและปัญหาที่ตรวจพบ <span style={styles.required}>*</span>
+              </label>
               <textarea
                 name="problem"
                 value={formData.problem}
@@ -272,7 +372,9 @@ useEffect(() => {
             </div>
 
             <div style={{ marginTop: "20px" }}>
-              <label style={styles.label}>การจัดการปัญหา / แนวทางแก้ไข <span style={styles.required}>*</span></label>
+              <label style={styles.label}>
+                การจัดการปัญหา / แนวทางแก้ไข <span style={styles.required}>*</span>
+              </label>
               <textarea
                 name="resolution_text"
                 style={styles.textarea}
@@ -310,9 +412,13 @@ useEffect(() => {
                 </div>
                 <div style={styles.previewContainer}>
                   {formData.beforeImages.map((file, i) => (
-                    <div key={i} style={styles.imageCard}>
+                    <div key={`${file.name}-${i}`} style={styles.imageCard}>
                       <img src={file.preview} alt="" style={styles.imageThumb} />
-                      <button type="button" style={styles.deleteIcon} onClick={() => removeFile("beforeImages", i)}>
+                      <button
+                        type="button"
+                        style={styles.deleteIcon}
+                        onClick={() => removeFile("beforeImages", i)}
+                      >
                         ✕
                       </button>
                     </div>
@@ -336,9 +442,13 @@ useEffect(() => {
                 </div>
                 <div style={styles.previewContainer}>
                   {formData.afterImages.map((file, i) => (
-                    <div key={i} style={styles.imageCard}>
+                    <div key={`${file.name}-${i}`} style={styles.imageCard}>
                       <img src={file.preview} alt="" style={styles.imageThumb} />
-                      <button type="button" style={styles.deleteIcon} onClick={() => removeFile("afterImages", i)}>
+                      <button
+                        type="button"
+                        style={styles.deleteIcon}
+                        onClick={() => removeFile("afterImages", i)}
+                      >
                         ✕
                       </button>
                     </div>
@@ -722,4 +832,3 @@ const styles = {
     cursor: "not-allowed"
   }
 };
-

@@ -22,13 +22,19 @@ export default function Report() {
 
   const findBranchMeta = (row, options) => {
     const safeOptions = Array.isArray(options) ? options : [];
-    const workplace = normalizeText(row?.workplace);
-    const displayName = normalizeText(row?.display_name);
+    const workplace = normalizeText(
+      row?.branch_display_name ||
+        row?.display_name ||
+        row?.branch_name ||
+        row?.workplace
+    );
+    const displayName = normalizeText(row?.display_name || row?.branch_display_name);
     const branchName = normalizeText(row?.branch_name);
 
     return (
       safeOptions.find((item) => normalizeText(item.display_name) === workplace) ||
       safeOptions.find((item) => normalizeText(item.branch_name) === workplace) ||
+      safeOptions.find((item) => normalizeText(item.store_name) === workplace) ||
       safeOptions.find((item) => normalizeText(item.display_name) === displayName) ||
       safeOptions.find((item) => normalizeText(item.branch_name) === branchName) ||
       null
@@ -57,40 +63,30 @@ export default function Report() {
       setUsers([]);
     }
   };
+const userObj = users.find((u) => u.username === selUser);
 
-  useEffect(() => {
-    const loadUserOptions = async () => {
-      if (!selUser) {
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/user-filter-options/${userObj?.username}`);
+
+      if (!res.ok) {
         setMasterOptions([]);
         return;
       }
 
-      const userObj = users.find((u) => u.username === selUser);
-      if (!userObj) {
-        setMasterOptions([]);
-        return;
-      }
+     const data = await res.json();
+setMasterOptions(Array.isArray(data?.options) ? data.options : []);
 
-      try {
-        const res = await fetch(`${API_URL}/api/user-filter-options/${userObj.id}`);
+    } catch (err) {
+      setMasterOptions([]);
+    }
+  };
 
-        if (!res.ok) {
-          console.warn("user-filter-options request failed:", res.status);
-          setMasterOptions([]);
-          return;
-        }
-
-        const data = await res.json();
-        setMasterOptions(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Fetch master options error:", err);
-        setMasterOptions([]);
-      }
-    };
-
-    loadUserOptions();
-  }, [selUser, users]);
-
+  if (userObj?.username) {
+    fetchData();
+  }
+}, [userObj]);
   const handleDelete = async (id) => {
     if (!window.confirm("คุณต้องการลบรายงานนี้ใช่หรือไม่?")) return;
 
@@ -119,12 +115,18 @@ export default function Report() {
   const retailerOpts = useMemo(() => {
     const data = selUser ? masterOptions : rows;
     const safe = Array.isArray(data) ? data : [];
-    const unique = [...new Set(safe.map((d) => d.retailer).filter(Boolean))];
+    const unique = [
+      ...new Set(
+        safe
+          .map((d) => d.retailer)
+          .filter(Boolean)
+      ),
+    ];
     return unique.sort();
   }, [rows, selUser, masterOptions]);
 
   const brandOpts = useMemo(() => {
-    let data = selUser ? masterOptions : rows;
+    let data = selUser && masterOptions.length > 0 ? masterOptions : rows;
     let safe = Array.isArray(data) ? data : [];
 
     if (selRetailer) {
@@ -136,27 +138,33 @@ export default function Report() {
   }, [rows, selUser, selRetailer, masterOptions]);
 
   const branchList = useMemo(() => {
-    let data = selUser ? masterOptions : rows;
-    let safe = Array.isArray(data) ? data : [];
+  let data = selUser ? masterOptions : rows;
+  let safe = Array.isArray(data) ? data : [];
 
-    if (selRetailer) {
-      safe = safe.filter((d) => d.retailer === selRetailer);
-    }
+  if (selRetailer) {
+    safe = safe.filter((d) => d.retailer === selRetailer);
+  }
 
-    if (selBrand) {
-      safe = safe.filter((d) => d.brand === selBrand);
-    }
+  if (selBrand) {
+    safe = safe.filter((d) => d.brand === selBrand);
+  }
 
-    const unique = [
-      ...new Set(
-        safe
-          .map((d) => d.display_name || d.branch_name || d.workplace)
-          .filter(Boolean)
-      ),
-    ];
+  const unique = [
+    ...new Set(
+      safe
+        .map(
+          (d) =>
+            d.branch_display_name ||
+            d.display_name ||
+            d.branch_name ||
+            d.workplace
+        )
+        .filter(Boolean)
+    ),
+  ];
 
-    return unique.sort();
-  }, [rows, selUser, selRetailer, selBrand, masterOptions]);
+  return unique.sort();
+}, [rows, selUser, selRetailer, selBrand, masterOptions]);
 
   const filteredData = useMemo(() => {
     const safeRows = Array.isArray(rows) ? rows : [];
@@ -168,6 +176,7 @@ export default function Report() {
       const effectiveRetailer = r.retailer || meta?.retailer || "";
       const effectiveBrand = r.brand || meta?.brand || "";
       const effectiveBranch =
+        r.branch_display_name ||
         r.display_name ||
         meta?.display_name ||
         r.branch_name ||
@@ -262,7 +271,6 @@ export default function Report() {
             />
           </div>
         </section>
-
         <div className="table-card">
           <div className="table-top">
             <div className="table-info">
@@ -292,13 +300,13 @@ export default function Report() {
                 ) : (
                   filteredData.map((r) => (
                     <DataRow
-                      key={r.id}
+                      key={r.id || r.mongo_id}
                       r={r}
                       checked={checkedItems[r.id] || false}
                       onCheck={() =>
                         setCheckedItems((p) => ({ ...p, [r.id]: !p[r.id] }))
                       }
-                      onDelete={() => handleDelete(r.id)}
+                      onDelete={() => handleDelete(r.id || r.mongo_id)}
                       onZoom={setZoomedImage}
                       masterOptions={masterOptions}
                       findBranchMeta={findBranchMeta}
@@ -338,18 +346,33 @@ const FilterSelect = ({ label, value, options, onChange }) => {
   );
 };
 
-const DataRow = ({ r, checked, onCheck, onDelete, onZoom, masterOptions = [], findBranchMeta }) => {
-  const meta = typeof findBranchMeta === "function" ? findBranchMeta(r, masterOptions) : null;
+const DataRow = ({
+  r,
+  checked,
+  onCheck,
+  onDelete,
+  onZoom,
+  masterOptions = [],
+  findBranchMeta,
+}) => {
+  const meta =
+    typeof findBranchMeta === "function" ? findBranchMeta(r, masterOptions) : null;
 
   const displayRetailer = r.retailer || meta?.retailer || "-";
   const displayBrand = r.brand || meta?.brand || "-";
   const displayBranch =
+    r.branch_display_name ||
     r.display_name ||
     meta?.display_name ||
     r.branch_name ||
     meta?.branch_name ||
     r.workplace ||
     "-";
+
+  const displayDate = r.visit_date || r.work_date || r.createdAt || r.created_at || "";
+  const displayIssue = r.detail || r.issue_text || "-";
+  const displayPurpose = r.purpose || r.description || "-";
+  const displaySolution = r.solution || r.resolution_text || "-";
 
   const normalizeImageSrc = (src) => {
     if (!src) return "";
@@ -393,7 +416,7 @@ const DataRow = ({ r, checked, onCheck, onDelete, onZoom, masterOptions = [], fi
             const finalSrc = normalizeImageSrc(src);
             return (
               <div
-                key={`${r.id}-img-${i}`}
+                key={`${r.id || r.mongo_id}-img-${i}`}
                 className="thumb-item"
                 onClick={() => onZoom(finalSrc)}
               >
@@ -412,7 +435,9 @@ const DataRow = ({ r, checked, onCheck, onDelete, onZoom, masterOptions = [], fi
     <tr>
       <td className="td-date">
         <span className="date-main">
-          {new Date(r.work_date || r.created_at).toLocaleDateString("th-TH")}
+          {displayDate
+            ? new Date(displayDate).toLocaleDateString("th-TH")
+            : "-"}
         </span>
         <span className="date-sub">System Log</span>
       </td>
@@ -428,10 +453,10 @@ const DataRow = ({ r, checked, onCheck, onDelete, onZoom, masterOptions = [], fi
         <span className="brand-tag">{displayBrand}</span>
       </td>
       <td className="td-issue">
-        <div className="issue-desc">{r.description || "-"}</div>
-        <div className="issue-detail">{r.issue_text || "-"}</div>
+        <div className="issue-desc">{displayPurpose}</div>
+        <div className="issue-detail">{displayIssue}</div>
       </td>
-      <td className="td-resolution">{r.resolution_text || "-"}</td>
+      <td className="td-resolution">{displaySolution}</td>
       <td>{renderImgs(r.before_images)}</td>
       <td>{renderImgs(r.after_images)}</td>
       <td>
@@ -522,82 +547,78 @@ const customCSS = `
   .blur-2 {
     bottom: -100px;
     right: -100px;
-    background: #ddd6fe;
+    background: #c7d2fe;
   }
 
   .main-content {
     position: relative;
-    z-index: 10;
-    max-width: 1500px;
+    z-index: 2;
+    max-width: 1250px;
     margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
+  }
+
+  .header-card,
+  .filter-card,
+  .table-card {
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(18px);
+    border-radius: 28px;
+    box-shadow: 0 10px 40px rgba(15, 23, 42, 0.06);
+    border: 1px solid rgba(255,255,255,0.7);
   }
 
   .header-card {
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(12px);
-    padding: 32px;
-    border-radius: var(--radius-l);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    box-shadow: var(--shadow-md);
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    gap: 20px;
+    align-items: flex-start;
+    padding: 28px;
+    margin-bottom: 20px;
   }
 
   .badge-new {
+    display: inline-block;
+    padding: 8px 14px;
+    border-radius: 999px;
     background: #dbeafe;
-    color: var(--p-blue);
-    padding: 6px 14px;
-    border-radius: 100px;
+    color: #2563eb;
     font-size: 13px;
     font-weight: 700;
+    margin-bottom: 16px;
     text-transform: uppercase;
   }
 
   .title-text {
-    font-size: 34px;
+    font-size: 42px;
+    margin: 0 0 8px;
     font-weight: 800;
-    margin: 12px 0 4px;
     letter-spacing: -1px;
   }
 
   .subtitle-text {
-    color: var(--t-sub);
-    font-size: 16px;
-    margin: 0;
+    margin: 0 0 14px;
+    color: #64748b;
+    font-size: 18px;
   }
 
   .admin-status {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 16px;
-    font-size: 14px;
+    color: #64748b;
     font-weight: 600;
-    color: var(--t-sub);
   }
 
   .pulse-dot {
-    width: 8px;
-    height: 8px;
-    background: #10b981;
+    width: 9px;
+    height: 9px;
+    background: #22c55e;
     border-radius: 50%;
-    box-shadow: 0 0 0 rgba(16, 185, 129, 0.4);
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-    70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    display: inline-block;
   }
 
   .admin-name {
-    color: var(--p-blue);
+    color: #2563eb;
+    font-weight: 700;
   }
 
   .header-actions {
@@ -605,46 +626,31 @@ const customCSS = `
     gap: 12px;
   }
 
+  .btn-outline,
   .btn-solid {
-    background: var(--t-main);
-    color: white;
     border: none;
-    padding: 12px 24px;
-    border-radius: 14px;
-    font-weight: 700;
+    border-radius: 16px;
+    padding: 14px 20px;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 600;
     cursor: pointer;
-    transition: 0.3s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .btn-solid:hover {
-    background: #1e293b;
-    transform: translateY(-2px);
   }
 
   .btn-outline {
-    background: white;
-    color: var(--t-main);
-    border: 1.5px solid #e2e8f0;
-    padding: 12px 24px;
-    border-radius: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: 0.3s;
+    background: #fff;
+    border: 1px solid #dbe3ef;
+    color: #0f172a;
   }
 
-  .btn-outline:hover {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
+  .btn-solid {
+    background: #0f172a;
+    color: #fff;
   }
 
   .filter-card {
-    background: white;
-    padding: 24px 32px;
-    border-radius: var(--radius-l);
-    box-shadow: var(--shadow-sm);
+    padding: 24px 28px;
+    margin-bottom: 18px;
   }
 
   .filter-title {
@@ -657,119 +663,94 @@ const customCSS = `
   .filter-title h3 {
     margin: 0;
     font-size: 18px;
-    font-weight: 800;
   }
 
   .filter-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 20px;
+    gap: 16px;
   }
 
   .filter-group label {
     display: block;
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--t-sub);
     margin-bottom: 8px;
-    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 600;
   }
 
   .filter-group select {
     width: 100%;
-    height: 48px;
-    background: #f8fafc;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 0 16px;
+    border-radius: 16px;
+    border: 1px solid #d9e2ec;
+    background: #fff;
+    padding: 14px 16px;
     font-family: inherit;
-    font-weight: 500;
-    color: var(--t-main);
+    font-size: 15px;
     outline: none;
-    transition: 0.3s;
-    cursor: pointer;
-  }
-
-  .filter-group select:focus {
-    border-color: var(--p-blue);
-    background: white;
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
   }
 
   .table-card {
-    background: white;
-    border-radius: var(--radius-l);
-    box-shadow: var(--shadow-sm);
-    padding: 10px;
+    padding: 24px 28px;
   }
 
   .table-top {
-    padding: 20px 22px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 16px;
   }
 
   .table-info h3 {
-    margin: 0;
+    margin: 0 0 10px;
     font-size: 20px;
-    font-weight: 800;
   }
 
   .count-pill {
-    background: #eff6ff;
-    color: var(--p-blue);
-    padding: 4px 12px;
-    border-radius: 100px;
-    font-size: 14px;
-    font-weight: 700;
-    margin-top: 4px;
     display: inline-block;
+    background: #e0e7ff;
+    color: #2563eb;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 14px;
   }
 
   .table-overflow {
     overflow-x: auto;
-    border-radius: 16px;
   }
 
   .custom-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 1400px;
   }
 
-  .custom-table th {
-    background: #f8fafc;
-    padding: 18px 20px;
+  .custom-table thead th {
     text-align: left;
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--t-sub);
-    text-transform: uppercase;
-    border-bottom: 2px solid #f1f5f9;
-  }
-
-  .custom-table td {
-    padding: 20px;
-    border-bottom: 1px solid #f1f5f9;
-    vertical-align: top;
-  }
-
-  .td-date {
-    width: 120px;
-  }
-
-  .td-date .date-main {
-    display: block;
+    padding: 16px 14px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 14px;
     font-weight: 700;
-    color: var(--t-main);
+  }
+
+  .custom-table tbody td {
+    padding: 18px 14px;
+    border-top: 1px solid #eef2f7;
+    vertical-align: top;
     font-size: 15px;
   }
 
-  .td-date .date-sub {
-    font-size: 12px;
-    color: var(--t-sub);
-    font-weight: 500;
+  .date-main {
+    display: block;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .date-sub {
+    display: block;
+    color: #94a3b8;
+    font-size: 13px;
+    margin-top: 4px;
   }
 
   .td-user {
@@ -780,74 +761,67 @@ const customCSS = `
   }
 
   .user-avatar {
-    width: 32px;
-    height: 32px;
-    background: #e0e7ff;
-    color: #4338ca;
-    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    background: #dbeafe;
+    color: #2563eb;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-weight: 800;
   }
 
   .loc-retailer {
-    font-weight: 800;
-    font-size: 15px;
-    color: var(--p-blue);
+    font-weight: 700;
+    color: #2563eb;
     margin-bottom: 4px;
   }
 
   .loc-name {
-    font-weight: 600;
-    color: var(--t-main);
-    font-size: 14px;
+    font-weight: 700;
     margin-bottom: 6px;
   }
 
   .brand-tag {
+    display: inline-block;
     background: #f1f5f9;
-    padding: 2px 8px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 800;
     color: #475569;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
   }
 
   .issue-desc {
-    font-weight: 700;
-    color: #e11d48;
+    color: #0f172a;
+    font-weight: 600;
     margin-bottom: 4px;
-    font-size: 14px;
   }
 
   .issue-detail {
-    font-size: 13px;
-    color: var(--t-sub);
-    line-height: 1.6;
-    max-width: 300px;
+    color: #64748b;
+  }
+
+  .td-resolution {
+    color: #334155;
+    font-weight: 500;
   }
 
   .thumb-grid {
     display: flex;
-    gap: 6px;
     flex-wrap: wrap;
+    gap: 8px;
   }
 
   .thumb-item {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     border-radius: 12px;
     overflow: hidden;
-    background: #f1f5f9;
+    background: #f8fafc;
     border: 1px solid #e2e8f0;
-    transition: 0.3s;
     cursor: pointer;
-  }
-
-  .thumb-item:hover {
-    transform: scale(1.05);
-    border-color: var(--p-blue);
   }
 
   .thumb-img {
@@ -857,122 +831,116 @@ const customCSS = `
   }
 
   .thumb-empty {
-    width: 64px;
-    height: 64px;
-    background: #f1f5f9;
-    color: #cbd5e1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 800;
-    border-radius: 12px;
+    color: #94a3b8;
+    font-size: 13px;
   }
 
   .check-work-wrap {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 6px;
+    gap: 8px;
+    align-items: flex-start;
   }
 
   .official-checkbox {
-    width: 22px;
-    height: 22px;
-    cursor: pointer;
-    accent-color: #10b981;
+    width: 18px;
+    height: 18px;
   }
 
   .checkbox-status-label {
-    font-size: 11px;
-    color: #475569;
+    font-size: 13px;
+    color: #334155;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
   }
 
   .btn-delete {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 38px;
-    padding: 0 16px;
-    border-radius: 10px;
     background: #fee2e2;
     color: #dc2626;
-    border: 1px solid #fecaca;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-family: inherit;
     font-weight: 700;
-    font-size: 13px;
     cursor: pointer;
-    transition: all 0.2s;
   }
 
-  .btn-delete:hover {
-    background: #dc2626;
-    color: white;
-    border-color: #dc2626;
-    transform: translateY(-1px);
+  .no-data {
+    text-align: center;
+    padding: 40px 20px !important;
+  }
+
+  .empty-state {
+    color: #94a3b8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+  }
+
+  .empty-icon {
+    font-size: 40px;
   }
 
   .zoom-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(15, 23, 42, 0.9);
-    backdrop-filter: blur(8px);
-    z-index: 9999;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.8);
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: zoom-out;
+    z-index: 1000;
+    padding: 20px;
   }
 
   .zoom-content {
     position: relative;
-    max-width: 90%;
-    max-height: 90%;
+    max-width: 90vw;
+    max-height: 90vh;
   }
 
   .zoom-content img {
     max-width: 100%;
     max-height: 90vh;
-    border-radius: 12px;
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    border-radius: 18px;
+    display: block;
   }
 
   .close-zoom {
     position: absolute;
-    top: -40px;
-    right: 0;
-    background: white;
+    top: 10px;
+    right: 10px;
+    background: #fff;
     border: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    font-weight: bold;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
     cursor: pointer;
+    font-size: 18px;
   }
 
-  .no-data {
-    padding: 100px !important;
-    text-align: center;
+  @media (max-width: 1024px) {
+    .filter-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .header-card {
+      flex-direction: column;
+      gap: 20px;
+    }
   }
 
-  .empty-state {
-    color: #cbd5e1;
-  }
+  @media (max-width: 640px) {
+    .report-container {
+      padding: 20px 14px;
+    }
 
-  .empty-icon {
-    font-size: 50px;
-    display: block;
-    margin-bottom: 10px;
-  }
+    .filter-grid {
+      grid-template-columns: 1fr;
+    }
 
-  .empty-state p {
-    font-size: 16px;
-    font-weight: 600;
-    color: #94a3b8;
+    .title-text {
+      font-size: 30px;
+    }
   }
 `;

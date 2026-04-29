@@ -26,31 +26,32 @@ export default function AdminForm() {
   const [selectedGlobalBranchId, setSelectedGlobalBranchId] = useState("");
   const [editingBranchId, setEditingBranchId] = useState(null);
   const [editingBranchName, setEditingBranchName] = useState("");
-
   const getBranchLabel = (branch) =>
-    String(branch?.display_name || branch?.branch_name || branch?.name || "").trim();
+    String(
+      branch?.store_name_brand ||
+        branch?.display_name ||
+        branch?.branch_name ||
+        branch?.name ||
+        "",
+    ).trim();
 
-  const uniqueNumbers = (arr) =>
-    [
-      ...new Set(
-        (arr || [])
-          .map((n) => Number(n))
-          .filter((n) => !Number.isNaN(n))
-      ),
-    ];
+  const uniqueNumbers = (arr) => [
+    ...new Set(
+      (arr || []).map((n) => Number(n)).filter((n) => !Number.isNaN(n)),
+    ),
+  ];
 
   const uniqueBranchOptions = useMemo(() => {
     const safeBranches = Array.isArray(branches) ? branches : [];
     const map = new Map();
 
     safeBranches.forEach((b) => {
-      const id = Number(b?.id ?? b?.branchId);
       const label = getBranchLabel(b);
 
-      if (!Number.isNaN(id) && label && !map.has(id)) {
-        map.set(id, {
+      if (label && !map.has(label)) {
+        map.set(label, {
           ...b,
-          id,
+          id: label,
           display_name: label,
         });
       }
@@ -60,7 +61,9 @@ export default function AdminForm() {
   }, [branches]);
 
   const selectedGlobalBranch =
-    uniqueBranchOptions.find((b) => Number(b.id) === Number(selectedGlobalBranchId)) || null;
+    uniqueBranchOptions.find(
+      (b) => String(b.id) === String(selectedGlobalBranchId),
+    ) || null;
 
   const fetchData = async () => {
     try {
@@ -68,12 +71,16 @@ export default function AdminForm() {
         fetch(`${API_URL}/api/users`),
         fetch(`${API_URL}/api/branches`),
       ]);
-
       const usersData = resUsers.ok ? await resUsers.json() : [];
       const branchesData = resBranches.ok ? await resBranches.json() : [];
 
       const safeBranches = Array.isArray(branchesData) ? branchesData : [];
       const safeUsers = Array.isArray(usersData) ? usersData : [];
+
+      const normalizedBranches = safeBranches.map((b) => ({
+        ...b,
+        display_name: getBranchLabel(b),
+      }));
 
       const usersWithBranches = await Promise.all(
         safeUsers.map(async (u) => {
@@ -82,13 +89,13 @@ export default function AdminForm() {
               return { ...u, branches: [] };
             }
 
-            const resUb = await fetch(`${API_URL}/api/user-branches/${u.id}`);
+            const resUb = await fetch(
+              `${API_URL}/api/user-branches/${u.username}`,
+            );
             const ubData = resUb.ok ? await resUb.json() : [];
 
             const branchIds = Array.isArray(ubData)
-              ? uniqueNumbers(
-                  ubData.map((item) => Number(item?.id ?? item?.branch_id))
-                )
+              ? ubData.map((item) => item.display_name).filter(Boolean)
               : [];
 
             return {
@@ -98,23 +105,23 @@ export default function AdminForm() {
           } catch {
             return { ...u, branches: [] };
           }
-        })
+        }),
       );
 
       const uniqueUsers = Array.from(
         new Map(
           usersWithBranches.map((u) => [
-            u.id,
+            u.username,
             {
               ...u,
-              branches: uniqueNumbers(u.branches || []),
+              branches: u.branches || [],
             },
-          ])
-        ).values()
+          ]),
+        ).values(),
       );
 
       setUsers(uniqueUsers);
-      setBranches(safeBranches);
+      setBranches(normalizedBranches);
     } catch (err) {
       console.error("Fetch Error:", err);
     }
@@ -167,7 +174,14 @@ export default function AdminForm() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/api/users/${editUserData.id}`, {
+     const mongoId = editUserData.id;
+
+if (!mongoId) {
+  alert("ไม่พบ mongo_id ของผู้ใช้");
+  return;
+}
+
+const res = await fetch(`${API_URL}/api/users/${mongoId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -183,10 +197,10 @@ export default function AdminForm() {
       if (res.ok) {
         setShowEditModal(false);
         await fetchData();
-        setSuccessMessage("✅ อัปเดตข้อมูลสำเร็จ");
+        setSuccessMessage("อัปเดตข้อมูลสำเร็จ");
         setTimeout(() => setSuccessMessage(""), 2000);
       } else {
-        alert(data?.error || "ไม่สามารถอัปเดตข้อมูลได้");
+       alert(data?.message || data?.error || "ไม่สามารถอัปเดตข้อมูลได้");
       }
     } catch (err) {
       console.error("Update user error:", err);
@@ -206,7 +220,7 @@ export default function AdminForm() {
     const normalizedInput = safeInput.toLowerCase();
 
     let targetBranch = uniqueBranchOptions.find(
-      (b) => getBranchLabel(b).toLowerCase() === normalizedInput
+      (b) => getBranchLabel(b).toLowerCase() === normalizedInput,
     );
 
     if (!targetBranch) {
@@ -227,9 +241,9 @@ export default function AdminForm() {
       }
     }
 
-    const targetBranchId = Number(targetBranch?.id ?? targetBranch?.branchId);
+    const targetBranchId = targetBranch?.id || getBranchLabel(targetBranch);
 
-    if (Number.isNaN(targetBranchId)) {
+    if (!targetBranchId) {
       alert("ไม่พบรหัสสาขา");
       return;
     }
@@ -242,7 +256,7 @@ export default function AdminForm() {
       const res = await fetch(`${API_URL}/api/user-branches/toggle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, branchId: Number(branchId) }),
+        body: JSON.stringify({ userId, branchId }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -254,7 +268,7 @@ export default function AdminForm() {
 
       setSelectedBranchId((prev) => ({ ...prev, [userId]: "" }));
       await fetchData();
-      setSuccessMessage("📌 อัปเดตสาขาเรียบร้อย");
+      setSuccessMessage(" อัปเดตสาขาเรียบร้อย");
       setTimeout(() => setSuccessMessage(""), 2000);
     } catch (error) {
       console.error("Toggle branch error:", error);
@@ -278,7 +292,7 @@ export default function AdminForm() {
       }
 
       await fetchData();
-      setSuccessMessage("🗑️ ลบพนักงานเรียบร้อย");
+      setSuccessMessage("ลบพนักงานเรียบร้อย");
       setTimeout(() => setSuccessMessage(""), 2000);
     } catch (error) {
       console.error("Delete user error:", error);
@@ -398,7 +412,7 @@ export default function AdminForm() {
       }
 
       await fetchData();
-      setSuccessMessage("🗑️ ลบสาขาสำเร็จ");
+      setSuccessMessage("ลบสาขาสำเร็จ");
       setTimeout(() => setSuccessMessage(""), 2000);
     } catch (error) {
       console.error("Delete branch error:", error);
@@ -411,7 +425,10 @@ export default function AdminForm() {
       alert("กรุณาเลือกสาขา");
       return;
     }
-    await deleteGlobalBranch(selectedGlobalBranch.id, getBranchLabel(selectedGlobalBranch));
+    await deleteGlobalBranch(
+      selectedGlobalBranch.id,
+      getBranchLabel(selectedGlobalBranch),
+    );
   };
 
   return (
@@ -428,7 +445,7 @@ export default function AdminForm() {
         <nav style={styles.nav}>
           <div style={styles.navItemActive}>👥 จัดการพนักงาน</div>
           <div style={styles.navItem} onClick={() => navigate("/report")}>
-            📊 รายงานสรุป
+            รายงานสรุป
           </div>
           <div style={styles.divider}></div>
           <div
@@ -438,7 +455,7 @@ export default function AdminForm() {
               navigate("/");
             }}
           >
-            🚪 ออกจากระบบ
+            ออกจากระบบ
           </div>
         </nav>
       </aside>
@@ -584,9 +601,9 @@ export default function AdminForm() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
+                {users?.filter(Boolean).map((u) => (
                   <UserRow
-                    key={u.id}
+                    key={u?.mongo_id || u?.username}
                     u={u}
                     branches={uniqueBranchOptions}
                     selectedBranchId={selectedBranchId}
@@ -630,10 +647,7 @@ const UserRow = ({
   getBranchLabel,
 }) => {
   const assignedBranches =
-    String(u.role).toLowerCase() === "admin"
-      ? []
-      : branches.filter((b) => (u.branches || []).includes(Number(b.id)));
-
+    String(u?.role || "").toLowerCase() === "admin" ? [] : u?.branches || [];
   return (
     <>
       <tr style={styles.tableRow}>
@@ -700,7 +714,7 @@ const UserRow = ({
               style={styles.btnEdit}
               onClick={() => {
                 setEditUserData({
-                  id: u.id,
+                  id: u.mongo_id,
                   username: u.username,
                   password: "",
                   role: u.role,
@@ -710,7 +724,11 @@ const UserRow = ({
             >
               แก้ไข
             </button>
-            <button style={styles.btnDelete} onClick={() => deleteUser(u.id)}>
+            {/* ✅ ต้องปิดตรงนี้ */}
+            <button
+              style={styles.btnDelete}
+              onClick={() => deleteUser(u.mongo_id)}
+            >
               ลบ
             </button>
           </div>
@@ -720,15 +738,13 @@ const UserRow = ({
         <td colSpan="4" style={styles.branchCell}>
           <div style={styles.chipsContainer}>
             {assignedBranches.length > 0 ? (
-              assignedBranches.map((b) => (
-                <div key={b.id} style={styles.branchChip}>
-                  {getBranchLabel(b)}{" "}
+              assignedBranches.map((branchName) => (
+                <div key={branchName} style={styles.branchChip}>
+                  {branchName}{" "}
                   <span
                     style={styles.chipRemove}
-                    onClick={() => toggleUserBranch(u.id, b.id)}
-                  >
-                    ×
-                  </span>
+                    onClick={() => toggleUserBranch(u.id, branchName)}
+                  ></span>
                 </div>
               ))
             ) : (

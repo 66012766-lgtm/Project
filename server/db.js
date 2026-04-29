@@ -1,48 +1,22 @@
-const mysql = require("mysql2");
+require("dotenv").config();
+const mongoose = require("mongoose");
 
-const requiredEnvs = [
-  "MYSQLHOST",
-  "MYSQLUSER",
-  "MYSQLPASSWORD",
-  "MYSQLDATABASE",
-  "MYSQLPORT",
-];
+if (!process.env.MONGO_URI) {
+  throw new Error("Missing environment variable: MONGO_URI");
+}
 
-for (const key of requiredEnvs) {
-  if (!process.env[key]) {
-    throw new Error(`Missing environment variable: ${key}`);
+async function connectDB() {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      dbName: process.env.MONGO_DB_NAME || undefined,
+    });
+
+    console.log("✅ เชื่อมต่อ MongoDB สำเร็จแล้ว!");
+  } catch (error) {
+    console.error("❌ เชื่อมต่อ MongoDB ไม่สำเร็จ:", error.message);
+    console.error("รายละเอียด:", error);
+    process.exit(1);
   }
 }
 
-const poolConfig = {
-  host: process.env.MYSQLHOST,
-  user: process.env.MYSQLUSER,
-  password: process.env.MYSQLPASSWORD,
-  database: process.env.MYSQLDATABASE,
-  port: Number(process.env.MYSQLPORT),
-
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  connectTimeout: 10000,
-};
-
-if (process.env.NODE_ENV === "production") {
-  poolConfig.ssl = {
-    rejectUnauthorized: false,
-  };
-}
-
-const pool = mysql.createPool(poolConfig);
-
-pool.getConnection((err, connection) => {
-  if (err) {
-    console.error("❌ เชื่อมต่อ Database ไม่สำเร็จ:", err.message);
-    console.error("รายละเอียด:", err);
-  } else {
-    console.log("✅ เชื่อมต่อ Database สำเร็จแล้ว!");
-    connection.release();
-  }
-});
-
-module.exports = pool.promise();
+module.exports = connectDB;

@@ -32,6 +32,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+
     const username = formData.username.trim();
     const password = formData.password.trim();
 
@@ -42,13 +43,21 @@ export default function Login() {
     }
 
     try {
-      // จำลองการ Delay เพื่อโชว์ Loading state สวยๆ
       await new Promise((resolve) => setTimeout(resolve, 800));
-const response = await fetch("https://project-production-e895.up.railway.app/api/login", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ username, password }),
-});
+
+      const API_URL = import.meta.env.VITE_API_URL;
+
+      const response = await fetch(`${API_URL}/api/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
       const data = await response.json();
 
       if (data.success) {
@@ -77,6 +86,7 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
         setError(data.message || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
       }
     } catch (err) {
+      console.error("Login error:", err);
       setError("การเชื่อมต่อล้มเหลว กรุณาตรวจสอบการเชื่อมต่อเซิร์ฟเวอร์");
     } finally {
       setIsLoading(false);
@@ -86,7 +96,6 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
   return (
     <>
       <div className="login-wrapper">
-        {/* Background Particles Area */}
         <div className="bg-canvas">
           <div className="orb orb-primary" />
           <div className="orb orb-secondary" />
@@ -94,7 +103,6 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
         </div>
 
         <div className="main-layout">
-          {/* Left Panel: The Experience Side */}
           <div className="experience-side">
             <div className="brand-logo-area">
               <div className="logo-box">
@@ -118,7 +126,6 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
               </p>
             </div>
 
-            {/* Dashboard Visual Mockup */}
             <div className="dashboard-visual">
               <div className="glass-card main-stats">
                 <div className="card-head">
@@ -192,7 +199,6 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
             </div>
           </div>
 
-          {/* Right Panel: The Form Side */}
           <div className="form-side">
             <div className="login-panel">
               <div className="panel-header">
@@ -305,7 +311,6 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
           justify-content: center;
         }
 
-        /* Animated Background */
         .bg-canvas {
           position: absolute;
           inset: 0;
@@ -334,7 +339,6 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
           to { transform: translate(50px, 100px) scale(1.2); }
         }
 
-        /* Main Layout */
         .main-layout {
           position: relative;
           z-index: 10;
@@ -347,7 +351,6 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
           gap: 40px;
         }
 
-        /* Left Side: Experience */
         .experience-side {
           display: flex;
           flex-direction: column;
@@ -423,7 +426,7 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
         .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .card-label { font-size: 14px; font-weight: 700; color: var(--text-p); }
         .card-tag { background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px; }
-        
+
         .line-chart-svg { height: 80px; width: 100%; margin: 10px 0; }
         .chart-line { width: 100%; overflow: visible; }
         .chart-line path { stroke-dasharray: 250; stroke-dashoffset: 250; animation: drawLine 2s ease-out forwards; }
@@ -436,7 +439,7 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
         .floating-widget { position: absolute; display: flex; align-items: center; gap: 12px; padding: 16px 20px; z-index: 6; min-width: 220px; }
         .w1 { top: 10px; right: 100px; animation: floatY 5s infinite alternate ease-in-out; }
         .w2 { bottom: 40px; left: 180px; animation: floatY 6s infinite alternate-reverse ease-in-out; }
-        
+
         .w-icon { font-size: 24px; }
         .w-title { font-size: 14px; font-weight: 700; color: var(--text-h); }
         .w-bar { height: 6px; width: 100px; background: #e2e8f0; border-radius: 3px; margin-top: 6px; overflow: hidden; }
@@ -450,7 +453,6 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
           to { transform: translateY(-20px); }
         }
 
-        /* Right Side: Login Form */
         .form-side {
           display: flex;
           align-items: center;
@@ -554,7 +556,8 @@ const response = await fetch("https://project-production-e895.up.railway.app/api
         .footer-copyright { margin-top: 40px; text-align: center; }
         .divider-text { position: relative; font-size: 12px; color: #cbd5e1; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; }
         .divider-text:before, .divider-text:after { content: ""; position: absolute; top: 50%; width: 25%; height: 1px; background: #e2e8f0; }
-        .divider-text:before { left: 0; } .divider-text:after { right: 0; }
+        .divider-text:before { left: 0; }
+        .divider-text:after { right: 0; }
         .footer-copyright p { font-size: 13px; color: #94a3b8; margin: 0; }
 
         @media (max-width: 1024px) {

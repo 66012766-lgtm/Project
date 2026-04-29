@@ -1,0 +1,138 @@
+Retailer	Brand	Retailer - Store Name	Retailer - Store Name (Brand)	User
+CENTRAL	Akemi	CENTRAL - Bang Rak	CENTRAL - Bang Rak (Akemi)	kongkrit
+CENTRAL	Akemi	CENTRAL - Fashion Island	CENTRAL - Fashion Island (Akemi)	kongkrit
+CENTRAL	Akemi	CENTRAL - Khon Kaen	CENTRAL - Khon Kaen (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Srinakarin	ROBINSON - Srinakarin (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Chiang Mai	ROBINSON - Chiang Mai (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Ayutthaya	ROBINSON - Ayutthaya (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Chachoengsao	ROBINSON - Chachoengsao (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Rangsit	ROBINSON - Rangsit (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Sukhumvit	ROBINSON - Sukhumvit (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Srisaman	ROBINSON - Srisaman (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Chiang Rai	ROBINSON - Chiang Rai (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Ubon Ratchathani	ROBINSON - Ubon Ratchathani (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Prachin Buri	ROBINSON - Prachin Buri (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Suvarnabhumi	ROBINSON - Suvarnabhumi (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Rayong	ROBINSON - Rayong (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Chanthaburi	ROBINSON - Chanthaburi (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Thalang	ROBINSON - Thalang (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Ratchaphruek	ROBINSON - Ratchaphruek (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Phitsanulok	ROBINSON - Phitsanulok (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Chon Buri	ROBINSON - Chon Buri (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Mukdahan	ROBINSON - Mukdahan (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Mahachai	ROBINSON - Mahachai (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Hat Yai	ROBINSON - Hat Yai (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Roi Et	ROBINSON - Roi Et (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Chalong	ROBINSON - Chalong (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Mae Sot	ROBINSON - Mae Sot (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Kamphaeng Phet	ROBINSON - Kamphaeng Phet (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Lopburi	ROBINSON - Lopburi (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Surin	ROBINSON - Surin (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Buri Ram	ROBINSON - Buri Ram (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Nakhon Si Thammarat 2	ROBINSON - Nakhon Si Thammarat 2 (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Lampang	ROBINSON - Lampang (Akemi)	kongkrit
+ROBINSON	Akemi	ROBINSON - Sakhon Nakhon	ROBINSON - Sakhon Nakhon (Akemi)	kongkrit
+CENTRAL	Akemi	CENTRAL - Rama 9	CENTRAL - Rama 9 (Akemi)	kongkrit
+BIG C	Studio One	BIG C - Rajdamri	BIG C - Rajdamri (Studio One)	mali
+BIG C	Studio One	BIG C - Pattaya 2	BIG C - Pattaya 2 (Studio One)	mali
+BIG C	Studio One	BIG C - Ratchadaphisek	BIG C - Ratchadaphisek (Studio One)	mali
+BIG C	Studio One	BIG C - Pattaya 3	BIG C - Pattaya 3 (Studio One)	mali
+BIG C	Studio One	BIG C - Chiang Mai 2	BIG C - Chiang Mai 2 (Studio One)	mali
+BIG C	Studio One	BIG C - Mega Bangna	BIG C - Mega Bangna (Studio One)	mali
+BIG C	Studio One	BIG C - Rama 4	BIG C - Rama 4 (Studio One)	mali
+BIG C	Studio One	BIG C - Suksawat	BIG C - Suksawat (Studio One)	mali
+BIG C	Studio One	BIG C - On Nut	BIG C - On Nut (Studio One)	mali
+BIG C	Studio One	BIG C - Itsaraphap	BIG C - Itsaraphap (Studio One)	mali
+BIG C	Studio One	BIG C - Chiang Mai	BIG C - Chiang Mai (Studio One)	mali
+BIG C	Studio One	BIG C - Hat Yai 2	BIG C - Hat Yai 2 (Studio One)	mali
+BIG C	Studio One	BIG C - Hua Mak	BIG C - Hua Mak (Studio One)	mali
+BIG C	Studio One	BIG C - Ekamai	BIG C - Ekamai (Studio One)	mali
+BIG C	Studio One	BIG C - Tiwanon	BIG C - Tiwanon (Studio One)	mali
+BIG C	Studio One	BIG C - Rangsit	BIG C - Rangsit (Studio One)	mali
+BIG C	Studio One	BIG C - Hat Yai	BIG C - Hat Yai (Studio One)	mali
+BIG C	Studio One	BIG C - Rattanathibet 2	BIG C - Rattanathibet 2 (Studio One)	mali
+BIG C	Studio One	BIG C - Lat Phrao	BIG C - Lat Phrao (Studio One)	mali
+BIG C	Studio One	BIG C - Bang Na	BIG C - Bang Na (Studio One)	mali
+BIG C	Studio One	BIG C - Su-ngai Kolok	BIG C - Su-ngai Kolok (Studio One)	mali
+BIG C	Studio One	BIG C - Pattani	BIG C - Pattani (Studio One)	mali
+BIG C	Studio One	BIG C - Chaengwattana	BIG C - Chaengwattana (Studio One)	mali
+BIG C	Studio One	BIG C - Phitsanulok	BIG C - Phitsanulok (Studio One)	mali
+BIG C	Studio One	BIG C - Lam Luk Ka Klong 4	BIG C - Lam Luk Ka Klong 4 (Studio One)	mali
+BIG C	Studio One	BIG C - Wong Sawang	BIG C - Wong Sawang (Studio One)	mali
+BIG C	Studio One	BIG C - Ubon Ratchathani	BIG C - Ubon Ratchathani (Studio One)	mali
+BIG C	Studio One	BIG C - Mahachai	BIG C - Mahachai (Studio One)	mali
+BIG C	Studio One	BIG C - Yala	BIG C - Yala (Studio One)	mali
+LOTUS	Studio One	LOTUS - Pattaya South	LOTUS - Pattaya South (Studio One)	mali
+LOTUS	Studio One	LOTUS - Laksi	LOTUS - Laksi (Studio One)	mali
+LOTUS	Studio One	LOTUS - Phitsanulok	LOTUS - Phitsanulok (Studio One)	mali
+HOMEPRO	Akemi	HOMEPRO - Ekamai-Ramintra	HOMEPRO - Ekamai-Ramintra (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Kaset-Nawamin	INDEX LIVING MALL - Kaset-Nawamin (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Udon Thani	INDEX LIVING MALL - Udon Thani (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Bang Na	INDEX LIVING MALL - Bang Na (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Pattaya 2	INDEX LIVING MALL - Pattaya 2 (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Chiang Mai	INDEX LIVING MALL - Chiang Mai (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Phuket	INDEX LIVING MALL - Phuket (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Rangsit	INDEX LIVING MALL - Rangsit (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Rama 2	INDEX LIVING MALL - Rama 2 (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Hat Yai	INDEX LIVING MALL - Hat Yai (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Ratchaphruek	INDEX LIVING MALL - Ratchaphruek (Akemi)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Chiang Rai	INDEX LIVING MALL - Chiang Rai (Akemi)	mathawee
+SB DESIGN SQUARE	Akemi	SB DESIGN SQUARE - Ratchaphruek	SB DESIGN SQUARE - Ratchaphruek (Akemi)	mathawee
+SB DESIGN SQUARE	Akemi	SB DESIGN SQUARE - Bang Na	SB DESIGN SQUARE - Bang Na (Akemi)	mathawee
+SB DESIGN SQUARE	Akemi	SB DESIGN SQUARE - Bang Khae	SB DESIGN SQUARE - Bang Khae (Akemi)	mathawee
+SB DESIGN SQUARE	Akemi	SB DESIGN SQUARE - Rama 2	SB DESIGN SQUARE - Rama 2 (Akemi)	mathawee
+SIAM TAKASHIMAYA	Akemi	SIAM TAKASHIMAYA - Icon Siam	SIAM TAKASHIMAYA - Icon Siam (Akemi)	mathawee
+SIAM TAKASHIMAYA	Cannon	SIAM TAKASHIMAYA - Icon Siam	SIAM TAKASHIMAYA - Icon Siam (Cannon)	mathawee
+INDEX LIVING MALL	Akemi	INDEX LIVING MALL - Ubon Ratchathani 2	INDEX LIVING MALL - Ubon Ratchathani 2 (Akemi)	mathawee
+CENTRAL	Akemi	CENTRAL - Bang Na	CENTRAL - Bang Na (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Bang Na	CENTRAL - Bang Na (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Chaengwattana	CENTRAL - Chaengwattana (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Chaengwattana	CENTRAL - Chaengwattana (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Chiang Mai	CENTRAL - Chiang Mai (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Chiang Mai	CENTRAL - Chiang Mai (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Chidlom	CENTRAL - Chidlom (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Chidlom	CENTRAL - Chidlom (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - East Ville	CENTRAL - East Ville (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - East Ville	CENTRAL - East Ville (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Hat Yai Kanchana	CENTRAL - Hat Yai Kanchana (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Hat Yai Kanchana	CENTRAL - Hat Yai Kanchana (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Korat	CENTRAL - Korat (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Lat Phrao	CENTRAL - Lat Phrao (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Lat Phrao	CENTRAL - Lat Phrao (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Mega Bangna	CENTRAL - Mega Bangna (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Nakhon Pathom	CENTRAL - Nakhon Pathom (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Nakhon Sawan	CENTRAL - Nakhon Sawan (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Pattaya	CENTRAL - Pattaya (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Pattaya	CENTRAL - Pattaya (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Phuket	CENTRAL - Phuket (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Pinklao	CENTRAL - Pinklao (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Pinklao	CENTRAL - Pinklao (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Ram Intra	CENTRAL - Ram Intra (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Rama 2	CENTRAL - Rama 2 (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Rama 3	CENTRAL - Rama 3 (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Rama 3	CENTRAL - Rama 3 (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Rangsit	CENTRAL - Rangsit (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Rangsit	CENTRAL - Rangsit (Cannon)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Salaya	CENTRAL - Salaya (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Silom	CENTRAL - Silom (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Udon Thani	CENTRAL - Udon Thani (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Westgate	CENTRAL - Westgate (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Westville	CENTRAL - Westville (Akemi)	thanthaporn
+CENTRAL	Akemi	CENTRAL - Zen World	CENTRAL - Zen World (Akemi)	thanthaporn
+CENTRAL	Cannon	CENTRAL - Zen World	CENTRAL - Zen World (Cannon)	thanthaporn
+THE MALL	Akemi	THE MALL - Paragon	THE MALL - Paragon (Akemi)	phurichaya
+THE MALL	Akemi	THE MALL - Emporium	THE MALL - Emporium (Akemi)	phurichaya
+THE MALL	Cannon	THE MALL - Emporium	THE MALL - Emporium (Cannon)	phurichaya
+THE MALL	Akemi	THE MALL - Bang Kapi	THE MALL - Bang Kapi (Akemi)	phurichaya
+THE MALL	Cannon	THE MALL - Bang Kapi	THE MALL - Bang Kapi (Cannon)	phurichaya
+THE MALL	Akemi	THE MALL - Bang Khae	THE MALL - Bang Khae (Akemi)	phurichaya
+THE MALL	Cannon	THE MALL - Bang Khae	THE MALL - Bang Khae (Cannon)	phurichaya
+THE MALL	Akemi	THE MALL - Tha-Pra	THE MALL - Tha-Pra (Akemi)	phurichaya
+THE MALL	Akemi	THE MALL - Ngam Wong Wan	THE MALL - Ngam Wong Wan (Akemi)	phurichaya
+THE MALL	Cannon	THE MALL - Ngam Wong Wan	THE MALL - Ngam Wong Wan (Cannon)	phurichaya
+THE MALL	Akemi	THE MALL - Korat	THE MALL - Korat (Akemi)	phurichaya
+THE MALL	Towel	THE MALL - Paragon	THE MALL - Paragon (Towel)	phurichaya
+THE MALL	Towel	THE MALL - Emporium	THE MALL - Emporium (Towel)	phurichaya
+THE MALL	Towel	THE MALL - Bang Kapi	THE MALL - Bang Kapi (Towel)	phurichaya
+THE MALL	Towel	THE MALL - Bang Khae	THE MALL - Bang Khae (Towel)	phurichaya
+THE MALL	Towel	THE MALL - Ngam Wong Wan	THE MALL - Ngam Wong Wan (Towel)	phurichaya
