@@ -8,12 +8,14 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(
-  cors({
-    origin: ["http://localhost:5173", "https://your-frontend.onrender.com"],
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "http://report.zpringe.com",
+    "https://report.zpringe.com"
+  ],
+  credentials: true
+}));
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
