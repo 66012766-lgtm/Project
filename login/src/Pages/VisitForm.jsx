@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 export default function VisitForm() {
   const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const API_URL = import.meta.env.VITE_API_URL || "https://retailer-log-api.onrender.com";
 
   const [currentUser, setCurrentUser] = useState(null);
   const [formConfig, setFormConfig] = useState([]);
@@ -27,12 +27,12 @@ export default function VisitForm() {
     const retailer = branch.retailer || branch.Retailer || "";
     const brand = branch.brand || branch.Brand || "";
     const storeName =
-      branch.store_name ||
-      branch.storeName ||
-      branch["Store Name"] ||
-      branch.code
-      branch["Retailer - Store Name"] ||
-      ``
+  branch.store_name ||
+  branch.storeName ||
+  branch["Store Name"] ||
+  branch.code ||
+  branch["Retailer - Store Name"] ||
+  "";
     
 
     return (
