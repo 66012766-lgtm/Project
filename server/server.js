@@ -728,11 +728,11 @@ app.get("/api/work_log", async (req, res) => {
         {
           projection: {
             before_images: 0,
-            after_images: 0
-          }
+            after_images: 0,
+          },
         }
       )
-      .sort({ createdAt: -1 })
+      .sort({ _id: -1 })
       .limit(200)
       .toArray();
 
