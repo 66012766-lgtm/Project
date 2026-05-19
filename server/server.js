@@ -721,21 +721,39 @@ app.post(
 );
 app.get("/api/work_log", async (req, res) => {
   try {
-    const visits = await db
+    const logs = await db
       .collection("visits")
-      .find({})
-      .sort({ _id: -1 })
-      .limit(300)
+      .find(
+        {},
+        {
+          projection: {
+            username: 1,
+            user_id: 1,
+            visit_date: 1,
+            branch_id: 1,
+            branch_display_name: 1,
+            retailer: 1,
+            brand: 1,
+            store_name: 1,
+            purpose: 1,
+            detail: 1,
+            solution: 1,
+            before_images: { $slice: 1 },
+            after_images: { $slice: 1 },
+            createdAt: 1
+          }
+        }
+      )
+      .sort({ createdAt: -1 })
+      .limit(200)
       .toArray();
 
-    res.json(visits);
+    res.json(logs);
   } catch (err) {
-    console.log("work_log error:", err);
-
-    res.status(500).json({
-      success: false,
-      message: "โหลดรายงานไม่สำเร็จ",
-    });
+    console.error("work_log error:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "โหลดรายงานไม่สำเร็จ" });
   }
 });
 app.delete("/api/work_log/:id", async (req, res) => {
