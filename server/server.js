@@ -736,38 +736,21 @@ app.post(
 );
 app.get("/api/work_log", async (req, res) => {
   try {
-    const { username, group, brand, branch } = req.query;
-
-    const query = {};
-
-    if (username && username !== "ทั้งหมด") {
-      query.username = String(username).trim();
-    }
-
-    if (group && group !== "ทั้งหมด") {
-      query.retailer = String(group).trim();
-    }
-
-    if (brand && brand !== "ทั้งหมด") {
-      query.brand = String(brand).trim();
-    }
-
-    if (branch && branch !== "ทั้งหมด") {
-      query.branch_display_name = String(branch).trim();
-    }
-
     const visits = await db
       .collection("visits")
-      .find(query)
-      .sort({ createdAt: -1 })
-      .allowDiskUse(true)
+      .find({})
+      .sort({ _id: -1 })
       .limit(300)
       .toArray();
 
-    res.json(visits.map(normalizeVisit));
+    res.json(visits);
   } catch (err) {
-    console.error("❌ work_log error:", err);
-    res.status(500).json({ success: false, message: "โหลดรายงานไม่สำเร็จ" });
+    console.log("work_log error:", err);
+
+    res.status(500).json({
+      success: false,
+      message: "โหลดรายงานไม่สำเร็จ",
+    });
   }
 });
 app.delete("/api/work_log/:id", async (req, res) => {
