@@ -120,57 +120,44 @@ function normalizeVisit(doc) {
     createdAt: doc.createdAt || null,
   };
 }
-
 async function getBranchesForUser(user) {
   const username = String(user?.username || "").trim();
   const role = String(user?.role || "").trim().toLowerCase();
 
+  const projection = {
+    projection: {
+      display_name: 1,
+      "Retailer - Store Name": 1,
+      retailer: 1,
+      brand: 1,
+      branch_name: 1,
+      store_name: 1,
+      workplace: 1,
+    },
+  };
+
   if (role === "admin" || username === "admin") {
     return await db
       .collection("branches")
-     .find({}, {
-  projection: {
-    display_name: 1,
-    "Retailer - Store Name": 1
-  }
-})
-.sort({ display_name: 1, "Retailer - Store Name": 1 })
-.limit(500)
-.toArray();
+      .find({}, projection)
+      .limit(500)
+      .toArray();
   }
 
   const branchesByUser = await db
     .collection("user_branches")
-   .find(
-  { username },
-  {
-    projection: {
-      display_name: 1,
-      "Retailer - Store Name": 1
-    }
-  }
-)
-.sort({ display_name: 1, "Retailer - Store Name": 1 })
-.limit(500)
-.toArray();
+    .find({ username }, projection)
+    .limit(500)
+    .toArray();
 
   if (branchesByUser.length > 0) {
     return branchesByUser;
   }
 
-  const links = await db
-    .collection("user_branches")
-    .find({ user_id: user.id })
-    .toArray();
-
-  const branchIds = links.map((x) => x.branch_id);
-
-  if (!branchIds.length) return [];
-
   return await db
-    .collection("user_branches")
-    .find({ store_name_brand: { $in: branchIds } })
-    .sort({ store_name_brand: 1 })
+    .collection("branches")
+    .find({}, projection)
+    .limit(500)
     .toArray();
 }
 
@@ -220,14 +207,12 @@ app.post("/api/users", async (req, res) => {
         message: "มี username นี้อยู่แล้ว",
       });
     }
-
-    const lastUser = await db
-      .collection("users")
-      .find({})
-      .sort({ id: -1 })
-      .limit(1)
-      .toArray();
-
+const logs = await db
+  .collection("work_log")
+  .find({})
+  .sort({ createdAt: -1, _id: -1 })
+  .limit(300)
+  .toArray();
     const nextId = lastUser.length ? Number(lastUser[0].id || 0) + 1 : 1;
 
     const result = await db.collection("users").insertOne({
