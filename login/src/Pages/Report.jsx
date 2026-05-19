@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://retailer-log-api.onrender.com";
+const API_URL =
+  import.meta.env.VITE_API_URL || "https://retailer-log-api.onrender.com";
 
 // ==========================================
 // 1. MAIN COMPONENT (Logic & State)
@@ -18,7 +19,10 @@ export default function Report() {
   const [masterOptions, setMasterOptions] = useState([]);
   const [checkedItems, setCheckedItems] = useState({});
 
-  const normalizeText = (value) => String(value || "").trim().toLowerCase();
+  const normalizeText = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
 
   const findBranchMeta = (row, options) => {
     const safeOptions = Array.isArray(options) ? options : [];
@@ -26,17 +30,29 @@ export default function Report() {
       row?.branch_display_name ||
         row?.display_name ||
         row?.branch_name ||
-        row?.workplace
+        row?.workplace,
     );
-    const displayName = normalizeText(row?.display_name || row?.branch_display_name);
+    const displayName = normalizeText(
+      row?.display_name || row?.branch_display_name,
+    );
     const branchName = normalizeText(row?.branch_name);
 
     return (
-      safeOptions.find((item) => normalizeText(item.display_name) === workplace) ||
-      safeOptions.find((item) => normalizeText(item.branch_name) === workplace) ||
-      safeOptions.find((item) => normalizeText(item.store_name) === workplace) ||
-      safeOptions.find((item) => normalizeText(item.display_name) === displayName) ||
-      safeOptions.find((item) => normalizeText(item.branch_name) === branchName) ||
+      safeOptions.find(
+        (item) => normalizeText(item.display_name) === workplace,
+      ) ||
+      safeOptions.find(
+        (item) => normalizeText(item.branch_name) === workplace,
+      ) ||
+      safeOptions.find(
+        (item) => normalizeText(item.store_name) === workplace,
+      ) ||
+      safeOptions.find(
+        (item) => normalizeText(item.display_name) === displayName,
+      ) ||
+      safeOptions.find(
+        (item) => normalizeText(item.branch_name) === branchName,
+      ) ||
       null
     );
   };
@@ -63,30 +79,31 @@ export default function Report() {
       setUsers([]);
     }
   };
-const userObj = users.find((u) => u.username === selUser);
+  const userObj = users.find((u) => u.username === selUser);
 
-useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/user-filter-options/${userObj?.username}`);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/api/user-filter-options/${userObj?.username}`,
+        );
 
-      if (!res.ok) {
+        if (!res.ok) {
+          setMasterOptions([]);
+          return;
+        }
+
+        const data = await res.json();
+        setMasterOptions(Array.isArray(data?.options) ? data.options : []);
+      } catch (err) {
         setMasterOptions([]);
-        return;
       }
+    };
 
-     const data = await res.json();
-setMasterOptions(Array.isArray(data?.options) ? data.options : []);
-
-    } catch (err) {
-      setMasterOptions([]);
+    if (userObj?.username) {
+      fetchData();
     }
-  };
-
-  if (userObj?.username) {
-    fetchData();
-  }
-}, [userObj]);
+  }, [userObj]);
   const handleDelete = async (id) => {
     if (!window.confirm("คุณต้องการลบรายงานนี้ใช่หรือไม่?")) return;
 
@@ -109,19 +126,15 @@ setMasterOptions(Array.isArray(data?.options) ? data.options : []);
 
   const userOptions = useMemo(() => {
     const safeUsers = Array.isArray(users) ? users : [];
-    return [...new Set(safeUsers.map((u) => u.username).filter(Boolean))].sort();
+    return [
+      ...new Set(safeUsers.map((u) => u.username).filter(Boolean)),
+    ].sort();
   }, [users]);
 
   const retailerOpts = useMemo(() => {
     const data = selUser ? masterOptions : rows;
     const safe = Array.isArray(data) ? data : [];
-    const unique = [
-      ...new Set(
-        safe
-          .map((d) => d.retailer)
-          .filter(Boolean)
-      ),
-    ];
+    const unique = [...new Set(safe.map((d) => d.retailer).filter(Boolean))];
     return unique.sort();
   }, [rows, selUser, masterOptions]);
 
@@ -138,33 +151,33 @@ setMasterOptions(Array.isArray(data?.options) ? data.options : []);
   }, [rows, selUser, selRetailer, masterOptions]);
 
   const branchList = useMemo(() => {
-  let data = selUser ? masterOptions : rows;
-  let safe = Array.isArray(data) ? data : [];
+    let data = selUser ? masterOptions : rows;
+    let safe = Array.isArray(data) ? data : [];
 
-  if (selRetailer) {
-    safe = safe.filter((d) => d.retailer === selRetailer);
-  }
+    if (selRetailer) {
+      safe = safe.filter((d) => d.retailer === selRetailer);
+    }
 
-  if (selBrand) {
-    safe = safe.filter((d) => d.brand === selBrand);
-  }
+    if (selBrand) {
+      safe = safe.filter((d) => d.brand === selBrand);
+    }
 
-  const unique = [
-    ...new Set(
-      safe
-        .map(
-          (d) =>
-            d.branch_display_name ||
-            d.display_name ||
-            d.branch_name ||
-            d.workplace
-        )
-        .filter(Boolean)
-    ),
-  ];
+    const unique = [
+      ...new Set(
+        safe
+          .map(
+            (d) =>
+              d.branch_display_name ||
+              d.display_name ||
+              d.branch_name ||
+              d.workplace,
+          )
+          .filter(Boolean),
+      ),
+    ];
 
-  return unique.sort();
-}, [rows, selUser, selRetailer, selBrand, masterOptions]);
+    return unique.sort();
+  }, [rows, selUser, selRetailer, selBrand, masterOptions]);
 
   const filteredData = useMemo(() => {
     const safeRows = Array.isArray(rows) ? rows : [];
@@ -212,15 +225,11 @@ setMasterOptions(Array.isArray(data?.options) ? data.options : []);
             </div>
           </div>
           <div className="header-actions">
-            <button className="btn-outline" onClick={() => navigate(-1)}>
-              ← ย้อนกลับ
-            </button>
-            <button
-              className="btn-solid"
-              onClick={() => window.location.reload()}
-            >
-              ⟳ รีเฟรชข้อมูล
-            </button>
+            <div className="header-actions">
+              <button className="btn-outline" onClick={() => navigate(-1)}>
+                ← ย้อนกลับ
+              </button>
+            </div>
           </div>
         </header>
 
@@ -356,7 +365,9 @@ const DataRow = ({
   findBranchMeta,
 }) => {
   const meta =
-    typeof findBranchMeta === "function" ? findBranchMeta(r, masterOptions) : null;
+    typeof findBranchMeta === "function"
+      ? findBranchMeta(r, masterOptions)
+      : null;
 
   const displayRetailer = r.retailer || meta?.retailer || "-";
   const displayBrand = r.brand || meta?.brand || "-";
@@ -369,7 +380,8 @@ const DataRow = ({
     r.workplace ||
     "-";
 
-  const displayDate = r.visit_date || r.work_date || r.createdAt || r.created_at || "";
+  const displayDate =
+    r.visit_date || r.work_date || r.createdAt || r.created_at || "";
   const displayIssue = r.detail || r.issue_text || "-";
   const displayPurpose = r.purpose || r.description || "-";
   const displaySolution = r.solution || r.resolution_text || "-";

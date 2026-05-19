@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 
 export default function VisitForm() {
   const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || "https://retailer-log-api.onrender.com";
+  const API_URL =
+    import.meta.env.VITE_API_URL || "https://retailer-log-api.onrender.com";
 
   const [currentUser, setCurrentUser] = useState(null);
   const [formConfig, setFormConfig] = useState([]);
@@ -27,13 +28,12 @@ export default function VisitForm() {
     const retailer = branch.retailer || branch.Retailer || "";
     const brand = branch.brand || branch.Brand || "";
     const storeName =
-  branch.store_name ||
-  branch.storeName ||
-  branch["Store Name"] ||
-  branch.code ||
-  branch["Retailer - Store Name"] ||
-  "";
-    
+      branch.store_name ||
+      branch.storeName ||
+      branch["Store Name"] ||
+      branch.code ||
+      branch["Retailer - Store Name"] ||
+      "";
 
     return (
       branch.name ||
@@ -45,8 +45,8 @@ export default function VisitForm() {
       (retailer && storeName && brand
         ? `${retailer} - ${storeName} (${brand})`
         : retailer && storeName
-        ? `${retailer} - ${storeName}`
-        : "")
+          ? `${retailer} - ${storeName}`
+          : "")
     );
   };
 
@@ -80,14 +80,16 @@ export default function VisitForm() {
       window.removeEventListener("storage", loadForm);
     };
   }, [navigate]);
+
   useEffect(() => {
     if (!currentUser?.username) return;
 
- fetch(
-  `${API_URL}/api/branches?username=${encodeURIComponent(
-    currentUser.username
-  )}&role=${encodeURIComponent(currentUser.role || "")}`
-).then(async (res) => {
+    fetch(
+      `${API_URL}/api/branches?username=${encodeURIComponent(
+        currentUser.username,
+      )}&role=${encodeURIComponent(currentUser.role || "")}`,
+    )
+      .then(async (res) => {
         const data = await res.json().catch(() => []);
         if (!res.ok) {
           throw new Error(data?.message || data?.error || "โหลดสาขาไม่สำเร็จ");
@@ -102,6 +104,7 @@ export default function VisitForm() {
         setVisibleBranches([]);
       });
   }, [currentUser, API_URL]);
+
   useEffect(() => {
     if (!successMessage) return;
     const timer = setTimeout(() => setSuccessMessage(""), 3000);
@@ -116,7 +119,9 @@ export default function VisitForm() {
   useEffect(() => {
     if (
       formData["สาขา"] &&
-      !visibleBranches.some((branch) => getBranchLabel(branch) === formData["สาขา"])
+      !visibleBranches.some(
+        (branch) => getBranchLabel(branch) === formData["สาขา"],
+      )
     ) {
       setFormData((prev) => ({ ...prev, สาขา: "" }));
     }
@@ -167,25 +172,22 @@ export default function VisitForm() {
   const removeFile = (fieldName, indexToRemove) => {
     setFormData((prev) => ({
       ...prev,
-      [fieldName]: prev[fieldName].filter((_, index) => index !== indexToRemove),
+      [fieldName]: prev[fieldName].filter(
+        (_, index) => index !== indexToRemove,
+      ),
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (
-      !formData.visitDate ||
-      !formData["สาขา"] ||
-      !formData.problem.trim() ||
-      !formData.resolution_text.trim()
-    ) {
-      alert("กรุณากรอกข้อมูลที่มี * ให้ครบ รวมถึงแนวทางแก้ไข");
+    if (!formData.visitDate || !formData["สาขา"] || !formData.reason.trim()) {
+      alert("กรุณากรอกข้อมูลที่มี * ให้ครบ");
       return;
     }
 
     const selectedBranch = visibleBranches.find(
-      (branch) => getBranchLabel(branch) === formData["สาขา"]
+      (branch) => getBranchLabel(branch) === formData["สาขา"],
     );
 
     if (!selectedBranch) {
@@ -196,41 +198,60 @@ export default function VisitForm() {
     setIsSubmitting(true);
 
     try {
-      const payload = {
-        username: currentUser?.username || "",
-        user_id: currentUser?.id || null,
-        visit_date: formData.visitDate,
-        branch_id: selectedBranch.id || null,
-        branch_display_name: getBranchLabel(selectedBranch),
-        retailer: selectedBranch.retailer || selectedBranch.Retailer || "",
-        brand: selectedBranch.brand || selectedBranch.Brand || "",
-        store_name:
-          selectedBranch.store_name ||
+      const payload = new FormData();
+
+      payload.append("username", currentUser?.username || "");
+      payload.append("user_id", currentUser?.id || "");
+      payload.append("visit_date", formData.visitDate);
+      payload.append("branch_id", selectedBranch.id || "");
+      payload.append("branch_display_name", getBranchLabel(selectedBranch));
+
+      payload.append(
+        "retailer",
+        selectedBranch.retailer || selectedBranch.Retailer || "",
+      );
+
+      payload.append(
+        "brand",
+        selectedBranch.brand || selectedBranch.Brand || "",
+      );
+
+      payload.append(
+        "store_name",
+        selectedBranch.store_name ||
           selectedBranch.storeName ||
           selectedBranch["Store Name"] ||
           selectedBranch["Retailer - Store Name"] ||
           selectedBranch.branch_name ||
           "",
-        purpose: formData.reason || "",
-        detail: formData.problem || "",
-        solution: formData.resolution_text || "",
-        before_images: formData.beforeImages.map((img) => img.preview),
-        after_images: formData.afterImages.map((img) => img.preview),
-      };
+      );
+
+      payload.append("purpose", formData.reason || "");
+      payload.append("detail", formData.problem || "");
+      payload.append("solution", formData.resolution_text || "");
+
+      formData.beforeImages.forEach((img) => {
+        payload.append("before_images", img.file);
+      });
+
+      formData.afterImages.forEach((img) => {
+        payload.append("after_images", img.file);
+      });
 
       console.log("save payload =>", payload);
 
       const response = await fetch(`${API_URL}/api/save-visit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: payload,
       });
 
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         console.error("save-visit error:", result);
-        alert(result.message || result.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+        alert(
+          result.message || result.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล",
+        );
         return;
       }
 
@@ -267,7 +288,8 @@ export default function VisitForm() {
             </div>
             <h1 style={styles.pageTitle}>แบบฟอร์มตรวจเช็คสินค้า</h1>
             <p style={styles.pageSubtitle}>
-              ระบบบันทึกรายงานการเข้าตรวจงาน กรุณาระบุข้อมูลและรูปภาพเพื่อประสิทธิภาพในการตรวจสอบ
+              ระบบบันทึกรายงานการเข้าตรวจงาน
+              กรุณาระบุข้อมูลและรูปภาพเพื่อประสิทธิภาพในการตรวจสอบ
             </p>
           </div>
           <div style={styles.topActions}>
@@ -280,7 +302,11 @@ export default function VisitForm() {
                 ดูรายงาน
               </button>
             )}
-            <button type="button" style={styles.logoutBtn} onClick={handleLogout}>
+            <button
+              type="button"
+              style={styles.logoutBtn}
+              onClick={handleLogout}
+            >
               ออกจากระบบ
             </button>
           </div>
@@ -335,7 +361,12 @@ export default function VisitForm() {
                     const label = getBranchLabel(branch);
                     return (
                       <option
-                        key={branch.mongo_id || branch._id || branch.id || `${label}-${index}`}
+                        key={
+                          branch.mongo_id ||
+                          branch._id ||
+                          branch.id ||
+                          `${label}-${index}`
+                        }
                         value={label}
                       >
                         {label || `สาขา ${index + 1}`}
@@ -347,7 +378,9 @@ export default function VisitForm() {
             </div>
 
             <div style={styles.fieldWrap}>
-              <label style={styles.label}>วัตถุประสงค์ในการเข้างาน</label>
+              <label style={styles.label}>
+                วัตถุประสงค์ในการเข้างาน <span style={styles.required}>*</span>
+              </label>
               <input
                 type="text"
                 name="reason"
@@ -355,13 +388,12 @@ export default function VisitForm() {
                 onChange={handleChange}
                 placeholder="เช่น เข้าตรวจเช็คระบบการทำงาน"
                 style={styles.input}
+                required
               />
             </div>
 
             <div style={styles.fieldWrap}>
-              <label style={styles.label}>
-                รายละเอียดและปัญหาที่ตรวจพบ <span style={styles.required}>*</span>
-              </label>
+              <label style={styles.label}>รายละเอียดและปัญหาที่ตรวจพบ</label>
               <textarea
                 name="problem"
                 value={formData.problem}
@@ -372,16 +404,13 @@ export default function VisitForm() {
             </div>
 
             <div style={{ marginTop: "20px" }}>
-              <label style={styles.label}>
-                การจัดการปัญหา / แนวทางแก้ไข <span style={styles.required}>*</span>
-              </label>
+              <label style={styles.label}>การจัดการปัญหา / แนวทางแก้ไข</label>
               <textarea
                 name="resolution_text"
                 style={styles.textarea}
                 placeholder="ระบุวิธีการแก้ไขปัญหาหรือสิ่งที่ได้ดำเนินการไปแล้ว..."
                 value={formData.resolution_text}
                 onChange={handleChange}
-                required
               />
             </div>
           </div>
@@ -398,7 +427,9 @@ export default function VisitForm() {
             <div style={styles.grid2}>
               <div style={styles.uploadArea}>
                 <div style={styles.uploadHeader}>
-                  <div style={styles.uploadLabel}>ภาพก่อนตรวจ Before (สูงสุด5รูป)</div>
+                  <div style={styles.uploadLabel}>
+                    ภาพก่อนตรวจ Before (สูงสุด5รูป)
+                  </div>
                   <label style={styles.uploadTrigger}>
                     เพิ่มรูป
                     <input
@@ -413,7 +444,11 @@ export default function VisitForm() {
                 <div style={styles.previewContainer}>
                   {formData.beforeImages.map((file, i) => (
                     <div key={`${file.name}-${i}`} style={styles.imageCard}>
-                      <img src={file.preview} alt="" style={styles.imageThumb} />
+                      <img
+                        src={file.preview}
+                        alt=""
+                        style={styles.imageThumb}
+                      />
                       <button
                         type="button"
                         style={styles.deleteIcon}
@@ -428,7 +463,9 @@ export default function VisitForm() {
 
               <div style={styles.uploadArea}>
                 <div style={styles.uploadHeader}>
-                  <div style={styles.uploadLabel}>ภาพหลังตรวจ After (สูงสุด5รูป)</div>
+                  <div style={styles.uploadLabel}>
+                    ภาพหลังตรวจ After (สูงสุด5รูป)
+                  </div>
                   <label style={styles.uploadTrigger}>
                     เพิ่มรูป
                     <input
@@ -443,7 +480,11 @@ export default function VisitForm() {
                 <div style={styles.previewContainer}>
                   {formData.afterImages.map((file, i) => (
                     <div key={`${file.name}-${i}`} style={styles.imageCard}>
-                      <img src={file.preview} alt="" style={styles.imageThumb} />
+                      <img
+                        src={file.preview}
+                        alt=""
+                        style={styles.imageThumb}
+                      />
                       <button
                         type="button"
                         style={styles.deleteIcon}
@@ -479,13 +520,13 @@ const styles = {
     width: "100%",
     background: "#f8fafc",
     padding: "24px 14px 40px",
-    boxSizing: "border-box"
+    boxSizing: "border-box",
   },
 
   contentWrap: {
     width: "100%",
     maxWidth: "920px",
-    margin: "0 auto"
+    margin: "0 auto",
   },
 
   heroCard: {
@@ -499,16 +540,16 @@ const styles = {
     gap: "16px",
     flexWrap: "wrap",
     marginBottom: "16px",
-    boxShadow: "0 4px 18px rgba(15, 23, 42, 0.04)"
+    boxShadow: "0 4px 18px rgba(15, 23, 42, 0.04)",
   },
 
   heroContent: {
     flex: "1 1 420px",
-    minWidth: 0
+    minWidth: 0,
   },
 
   badgeRow: {
-    marginBottom: "12px"
+    marginBottom: "12px",
   },
 
   userBadge: {
@@ -521,7 +562,7 @@ const styles = {
     borderRadius: "999px",
     fontWeight: "700",
     fontSize: "13px",
-    border: "1px solid #bfdbfe"
+    border: "1px solid #bfdbfe",
   },
 
   onlineDot: {
@@ -529,7 +570,7 @@ const styles = {
     height: "8px",
     background: "#22c55e",
     borderRadius: "50%",
-    display: "inline-block"
+    display: "inline-block",
   },
 
   pageTitle: {
@@ -538,7 +579,7 @@ const styles = {
     lineHeight: 1.2,
     fontWeight: "800",
     color: "#0f172a",
-    letterSpacing: "-0.02em"
+    letterSpacing: "-0.02em",
   },
 
   pageSubtitle: {
@@ -546,14 +587,14 @@ const styles = {
     color: "#64748b",
     fontSize: "14px",
     lineHeight: 1.7,
-    maxWidth: "640px"
+    maxWidth: "640px",
   },
 
   topActions: {
     display: "flex",
     gap: "10px",
     flexWrap: "wrap",
-    width: "100%"
+    width: "100%",
   },
 
   reportBtn: {
@@ -565,7 +606,7 @@ const styles = {
     background: "#ffffff",
     color: "#0f172a",
     fontWeight: "700",
-    cursor: "pointer"
+    cursor: "pointer",
   },
 
   logoutBtn: {
@@ -578,7 +619,7 @@ const styles = {
     color: "#ffffff",
     fontWeight: "700",
     cursor: "pointer",
-    boxShadow: "0 6px 16px rgba(37, 99, 235, 0.18)"
+    boxShadow: "0 6px 16px rgba(37, 99, 235, 0.18)",
   },
 
   successAlert: {
@@ -589,7 +630,7 @@ const styles = {
     border: "1px solid #bbf7d0",
     borderRadius: "16px",
     padding: "14px 16px",
-    marginBottom: "16px"
+    marginBottom: "16px",
   },
 
   successIcon: {
@@ -602,25 +643,25 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    fontWeight: "800"
+    fontWeight: "800",
   },
 
   successTitle: {
     fontWeight: "800",
     color: "#166534",
-    fontSize: "14px"
+    fontSize: "14px",
   },
 
   successText: {
     fontSize: "13px",
     color: "#166534",
-    lineHeight: 1.5
+    lineHeight: 1.5,
   },
 
   formGrid: {
     display: "flex",
     flexDirection: "column",
-    gap: "16px"
+    gap: "16px",
   },
 
   sectionCard: {
@@ -628,14 +669,14 @@ const styles = {
     border: "1px solid #e2e8f0",
     borderRadius: "20px",
     padding: "20px",
-    boxShadow: "0 4px 18px rgba(15, 23, 42, 0.03)"
+    boxShadow: "0 4px 18px rgba(15, 23, 42, 0.03)",
   },
 
   sectionHeader: {
     display: "flex",
     alignItems: "center",
     gap: "12px",
-    marginBottom: "18px"
+    marginBottom: "18px",
   },
 
   iconBox: {
@@ -648,7 +689,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     fontSize: "18px",
-    flexShrink: 0
+    flexShrink: 0,
   },
 
   sectionEyebrow: {
@@ -657,24 +698,24 @@ const styles = {
     color: "#2563eb",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    marginBottom: "2px"
+    marginBottom: "2px",
   },
 
   sectionTitle: {
     fontSize: "20px",
     fontWeight: "800",
     color: "#0f172a",
-    lineHeight: 1.3
+    lineHeight: 1.3,
   },
 
   grid2: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: "14px"
+    gap: "14px",
   },
 
   fieldWrap: {
-    marginBottom: "16px"
+    marginBottom: "16px",
   },
 
   label: {
@@ -682,11 +723,11 @@ const styles = {
     marginBottom: "8px",
     fontSize: "14px",
     fontWeight: "700",
-    color: "#334155"
+    color: "#334155",
   },
 
   required: {
-    color: "#ef4444"
+    color: "#ef4444",
   },
 
   input: {
@@ -699,7 +740,7 @@ const styles = {
     padding: "0 14px",
     outline: "none",
     boxSizing: "border-box",
-    fontSize: "15px"
+    fontSize: "15px",
   },
 
   select: {
@@ -712,7 +753,7 @@ const styles = {
     padding: "0 14px",
     outline: "none",
     boxSizing: "border-box",
-    fontSize: "15px"
+    fontSize: "15px",
   },
 
   textarea: {
@@ -727,14 +768,14 @@ const styles = {
     resize: "vertical",
     boxSizing: "border-box",
     fontSize: "15px",
-    lineHeight: 1.65
+    lineHeight: 1.65,
   },
 
   uploadArea: {
     background: "#f8fafc",
     border: "1px dashed #cbd5e1",
     borderRadius: "16px",
-    padding: "16px"
+    padding: "16px",
   },
 
   uploadHeader: {
@@ -743,13 +784,13 @@ const styles = {
     alignItems: "center",
     gap: "10px",
     marginBottom: "14px",
-    flexWrap: "wrap"
+    flexWrap: "wrap",
   },
 
   uploadLabel: {
     fontSize: "14px",
     fontWeight: "700",
-    color: "#334155"
+    color: "#334155",
   },
 
   uploadTrigger: {
@@ -759,17 +800,17 @@ const styles = {
     borderRadius: "10px",
     fontSize: "13px",
     fontWeight: "700",
-    cursor: "pointer"
+    cursor: "pointer",
   },
 
   hiddenInput: {
-    display: "none"
+    display: "none",
   },
 
   previewContainer: {
     display: "flex",
     gap: "10px",
-    flexWrap: "wrap"
+    flexWrap: "wrap",
   },
 
   imageCard: {
@@ -779,13 +820,13 @@ const styles = {
     borderRadius: "12px",
     overflow: "hidden",
     border: "1px solid #e2e8f0",
-    background: "#ffffff"
+    background: "#ffffff",
   },
 
   imageThumb: {
     width: "100%",
     height: "100%",
-    objectFit: "cover"
+    objectFit: "cover",
   },
 
   deleteIcon: {
@@ -802,11 +843,11 @@ const styles = {
     height: "22px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
   },
 
   submitSection: {
-    marginTop: "2px"
+    marginTop: "2px",
   },
 
   submitBtn: {
@@ -819,7 +860,7 @@ const styles = {
     fontSize: "16px",
     fontWeight: "800",
     cursor: "pointer",
-    boxShadow: "0 8px 18px rgba(37, 99, 235, 0.18)"
+    boxShadow: "0 8px 18px rgba(37, 99, 235, 0.18)",
   },
 
   submitBtnDisabled: {
@@ -829,6 +870,6 @@ const styles = {
     color: "#64748b",
     border: "none",
     borderRadius: "14px",
-    cursor: "not-allowed"
-  }
+    cursor: "not-allowed",
+  },
 };
