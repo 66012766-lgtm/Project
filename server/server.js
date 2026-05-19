@@ -128,16 +128,31 @@ async function getBranchesForUser(user) {
   if (role === "admin" || username === "admin") {
     return await db
       .collection("branches")
-      .find({})
-      .sort({ display_name: 1, "Retailer - Store Name": 1 })
-      .toArray();
+     .find({}, {
+  projection: {
+    display_name: 1,
+    "Retailer - Store Name": 1
+  }
+})
+.sort({ display_name: 1, "Retailer - Store Name": 1 })
+.limit(500)
+.toArray();
   }
 
   const branchesByUser = await db
     .collection("user_branches")
-    .find({ username })
-    .sort({ display_name: 1, "Retailer - Store Name": 1 })
-    .toArray();
+   .find(
+  { username },
+  {
+    projection: {
+      display_name: 1,
+      "Retailer - Store Name": 1
+    }
+  }
+)
+.sort({ display_name: 1, "Retailer - Store Name": 1 })
+.limit(500)
+.toArray();
 
   if (branchesByUser.length > 0) {
     return branchesByUser;
