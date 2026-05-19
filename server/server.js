@@ -723,15 +723,7 @@ app.get("/api/work_log", async (req, res) => {
   try {
     const rows = await db
       .collection("visits")
-      .find(
-        {},
-        {
-          projection: {
-            before_images: 0,
-            after_images: 0,
-          },
-        }
-      )
+      .find({})
       .sort({ _id: -1 })
       .limit(200)
       .toArray();
