@@ -742,11 +742,12 @@ app.get("/api/work_log", async (req, res) => {
       query.branch_display_name = String(branch).trim();
     }
 
-    const visits = await db
-      .collection("visits")
-      .find(query)
-      .sort({ createdAt: -1 })
-      .toArray();
+   const visits = await db
+  .collection("visits")
+  .find(query)
+  .sort({ createdAt: -1 })
+  .limit(300)
+  .toArray();
 
     res.json(visits.map(normalizeVisit));
   } catch (err) {
