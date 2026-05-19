@@ -86,12 +86,14 @@ function normalizeBranch(doc) {
     id: doc.id ?? null,
     display_name:
       doc.store_name_brand ||
+      doc.display_name ||
       doc.store_name ||
       doc["Retailer - Store Name"] ||
       doc.name ||
       "",
     branch_name:
       doc.store_name_brand ||
+      doc.branch_name ||
       doc.store_name ||
       doc.name ||
       "",
@@ -105,6 +107,7 @@ function normalizeBranch(doc) {
 
 function normalizeVisit(doc) {
   return {
+    mongo_id: doc._id?.toString?.() || "",
     id: doc.id ?? null,
     username: doc.username || "",
     visit_date: doc.visit_date || "",
@@ -118,8 +121,10 @@ function normalizeVisit(doc) {
     before_images: doc.before_images || [],
     after_images: doc.after_images || [],
     createdAt: doc.createdAt || null,
+    updatedAt: doc.updatedAt || null,
   };
 }
+
 async function getBranchesForUser(user) {
   const username = String(user?.username || "").trim();
   const role = String(user?.role || "").trim().toLowerCase();
@@ -127,12 +132,17 @@ async function getBranchesForUser(user) {
   const projection = {
     projection: {
       display_name: 1,
+      store_name_brand: 1,
       "Retailer - Store Name": 1,
       retailer: 1,
       brand: 1,
       branch_name: 1,
       store_name: 1,
       workplace: 1,
+      username: 1,
+      user: 1,
+      User: 1,
+      name: 1,
     },
   };
 
@@ -207,12 +217,14 @@ app.post("/api/users", async (req, res) => {
         message: "มี username นี้อยู่แล้ว",
       });
     }
-const logs = await db
-  .collection("work_log")
-  .find({})
-  .sort({ createdAt: -1, _id: -1 })
-  .limit(300)
-  .toArray();
+
+    const lastUser = await db
+      .collection("users")
+      .find({})
+      .sort({ id: -1 })
+      .limit(1)
+      .toArray();
+
     const nextId = lastUser.length ? Number(lastUser[0].id || 0) + 1 : 1;
 
     const result = await db.collection("users").insertOne({
@@ -719,6 +731,7 @@ app.post(
     }
   }
 );
+
 app.get("/api/work_log", async (req, res) => {
   try {
     const rows = await db
@@ -728,7 +741,7 @@ app.get("/api/work_log", async (req, res) => {
       .limit(200)
       .toArray();
 
-    res.json(rows);
+    res.json(rows.map(normalizeVisit));
   } catch (err) {
     console.error("work_log error:", err);
 
@@ -738,6 +751,7 @@ app.get("/api/work_log", async (req, res) => {
     });
   }
 });
+
 app.delete("/api/work_log/:id", async (req, res) => {
   try {
     const { id } = req.params;
