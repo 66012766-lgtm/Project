@@ -2,23 +2,54 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { MongoClient, ObjectId } from "mongodb";
-
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 app.options("*", cors());
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+const uploadDir = "uploads";
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+app.use("/uploads", express.static(uploadDir));
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || "");
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    cb(null, filename);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+    files: 10,
+  },
+});
 
 if (!process.env.MONGODB_URI) {
   console.error("❌ ไม่พบ MONGODB_URI ในไฟล์ .env");
@@ -49,25 +80,21 @@ function normalizeUser(doc) {
   };
 }
 
-
 function normalizeBranch(doc) {
   return {
     mongo_id: doc._id?.toString?.() || "",
     id: doc.id ?? null,
-
     display_name:
       doc.store_name_brand ||
       doc.store_name ||
       doc["Retailer - Store Name"] ||
       doc.name ||
       "",
-
     branch_name:
       doc.store_name_brand ||
       doc.store_name ||
       doc.name ||
       "",
-
     retailer: doc.retailer || doc.Retailer || "",
     brand: doc.brand || doc.Brand || "",
     store_name: doc.store_name || doc["Retailer - Store Name"] || "",
@@ -75,6 +102,7 @@ function normalizeBranch(doc) {
     User: doc.username || doc.User || doc.user || "",
   };
 }
+
 function normalizeVisit(doc) {
   return {
     id: doc.id ?? null,
@@ -97,7 +125,6 @@ async function getBranchesForUser(user) {
   const username = String(user?.username || "").trim();
   const role = String(user?.role || "").trim().toLowerCase();
 
-  // ✅ admin เห็นทุกสาขา
   if (role === "admin" || username === "admin") {
     return await db
       .collection("branches")
@@ -106,12 +133,9 @@ async function getBranchesForUser(user) {
       .toArray();
   }
 
-  // ✅ user ทั่วไป เห็นเฉพาะสาขาของตัวเอง
- const branchesByUser = await db
-  .collection("user_branches")
-  .find({
-    username: username,
-  })
+  const branchesByUser = await db
+    .collection("user_branches")
+    .find({ username })
     .sort({ display_name: 1, "Retailer - Store Name": 1 })
     .toArray();
 
@@ -128,12 +152,13 @@ async function getBranchesForUser(user) {
 
   if (!branchIds.length) return [];
 
- return await db
-  .collection("user_branches")
- .find({ store_name_brand: { $in: branchIds } })
- .sort({ store_name_brand: 1 })
+  return await db
+    .collection("user_branches")
+    .find({ store_name_brand: { $in: branchIds } })
+    .sort({ store_name_brand: 1 })
     .toArray();
 }
+
 async function connectDB() {
   try {
     await client.connect();
@@ -145,23 +170,17 @@ async function connectDB() {
   }
 }
 
-/* ================= ROOT ================= */
 app.get("/", (req, res) => {
   res.send("API is working");
 });
 
-/* ================= USERS ================= */
 app.get("/api/users", async (req, res) => {
   try {
     const users = await db.collection("users").find({}).sort({ id: 1 }).toArray();
-    
     res.json(users.map(normalizeUser));
   } catch (err) {
     console.error("❌ Get users error:", err);
-    res.status(500).json({
-      success: false,
-      message: "โหลด users ไม่สำเร็จ",
-    });
+    res.status(500).json({ success: false, message: "โหลด users ไม่สำเร็จ" });
   }
 });
 
@@ -214,10 +233,7 @@ app.post("/api/users", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Create user error:", err);
-    res.status(500).json({
-      success: false,
-      message: "เพิ่มผู้ใช้ไม่สำเร็จ",
-    });
+    res.status(500).json({ success: false, message: "เพิ่มผู้ใช้ไม่สำเร็จ" });
   }
 });
 
@@ -227,10 +243,7 @@ app.put("/api/users/:mongoId", async (req, res) => {
     const { username, password, full_name, role } = req.body;
 
     if (!isValidObjectId(mongoId)) {
-      return res.status(400).json({
-        success: false,
-        message: "mongoId ไม่ถูกต้อง",
-      });
+      return res.status(400).json({ success: false, message: "mongoId ไม่ถูกต้อง" });
     }
 
     const oldUser = await db.collection("users").findOne({
@@ -238,10 +251,7 @@ app.put("/api/users/:mongoId", async (req, res) => {
     });
 
     if (!oldUser) {
-      return res.status(404).json({
-        success: false,
-        message: "ไม่พบ user",
-      });
+      return res.status(404).json({ success: false, message: "ไม่พบ user" });
     }
 
     const nextUsername = String(username || oldUser.username).trim();
@@ -277,16 +287,10 @@ app.put("/api/users/:mongoId", async (req, res) => {
       }
     );
 
-    res.json({
-      success: true,
-      message: "แก้ไขผู้ใช้สำเร็จ",
-    });
+    res.json({ success: true, message: "แก้ไขผู้ใช้สำเร็จ" });
   } catch (err) {
     console.error("❌ Update user error:", err);
-    res.status(500).json({
-      success: false,
-      message: "แก้ไขผู้ใช้ไม่สำเร็จ",
-    });
+    res.status(500).json({ success: false, message: "แก้ไขผู้ใช้ไม่สำเร็จ" });
   }
 });
 
@@ -295,10 +299,7 @@ app.delete("/api/users/:mongoId", async (req, res) => {
     const { mongoId } = req.params;
 
     if (!isValidObjectId(mongoId)) {
-      return res.status(400).json({
-        success: false,
-        message: "mongoId ไม่ถูกต้อง",
-      });
+      return res.status(400).json({ success: false, message: "mongoId ไม่ถูกต้อง" });
     }
 
     const user = await db.collection("users").findOne({
@@ -306,10 +307,7 @@ app.delete("/api/users/:mongoId", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "ไม่พบ user",
-      });
+      return res.status(404).json({ success: false, message: "ไม่พบ user" });
     }
 
     await db.collection("users").deleteOne({
@@ -322,20 +320,13 @@ app.delete("/api/users/:mongoId", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      message: "ลบผู้ใช้สำเร็จ",
-    });
+    res.json({ success: true, message: "ลบผู้ใช้สำเร็จ" });
   } catch (err) {
     console.error("❌ Delete user error:", err);
-    res.status(500).json({
-      success: false,
-      message: "ลบผู้ใช้ไม่สำเร็จ",
-    });
+    res.status(500).json({ success: false, message: "ลบผู้ใช้ไม่สำเร็จ" });
   }
 });
 
-/* ================= LOGIN ================= */
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -374,14 +365,10 @@ app.post("/api/login", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Login error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-/* ================= BRANCHES ================= */
 app.get("/api/branches", async (req, res) => {
   try {
     const username = String(req.query.username || "").trim();
@@ -402,13 +389,10 @@ app.get("/api/branches", async (req, res) => {
     res.json(branches.map(normalizeBranch));
   } catch (err) {
     console.error("❌ Get branches error:", err);
-    res.status(500).json({
-      success: false,
-      message: "โหลด branches ไม่สำเร็จ",
-    });
+    res.status(500).json({ success: false, message: "โหลด branches ไม่สำเร็จ" });
   }
-
 });
+
 app.post("/api/branches", async (req, res) => {
   try {
     const name = String(req.body.display_name || req.body.branch_name || "").trim();
@@ -449,6 +433,7 @@ app.post("/api/branches", async (req, res) => {
     res.status(500).json({ success: false, message: "เพิ่มสาขาไม่สำเร็จ" });
   }
 });
+
 app.put("/api/branches/:branchName", async (req, res) => {
   try {
     const oldName = decodeURIComponent(String(req.params.branchName || "")).trim();
@@ -475,6 +460,7 @@ app.put("/api/branches/:branchName", async (req, res) => {
     res.status(500).json({ success: false, message: "แก้ไขสาขาไม่สำเร็จ" });
   }
 });
+
 app.delete("/api/branches/:branchName", async (req, res) => {
   try {
     const branchName = decodeURIComponent(String(req.params.branchName || "")).trim();
@@ -493,6 +479,7 @@ app.delete("/api/branches/:branchName", async (req, res) => {
     res.status(500).json({ success: false, message: "ลบสาขาไม่สำเร็จ" });
   }
 });
+
 app.get("/api/user-branches/:username", async (req, res) => {
   try {
     const username = String(req.params.username || "").trim();
@@ -514,15 +501,13 @@ app.get("/api/user-branches/:username", async (req, res) => {
     });
   }
 });
+
 app.post("/api/user-branches/add", async (req, res) => {
   try {
     const { username, branch } = req.body;
 
     if (!username || !branch) {
-      return res.status(400).json({
-        success: false,
-        message: "ข้อมูลไม่ครบ",
-      });
+      return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบ" });
     }
 
     const exists = await db.collection("user_branches").findOne({
@@ -547,20 +532,13 @@ app.post("/api/user-branches/add", async (req, res) => {
       updatedAt: new Date(),
     });
 
-    res.json({
-      success: true,
-      message: "เพิ่มสาขาให้ผู้ใช้สำเร็จ",
-    });
+    res.json({ success: true, message: "เพิ่มสาขาให้ผู้ใช้สำเร็จ" });
   } catch (err) {
     console.error("❌ Add user branch error:", err);
-    res.status(500).json({
-      success: false,
-      message: "เพิ่มสาขาไม่สำเร็จ",
-    });
+    res.status(500).json({ success: false, message: "เพิ่มสาขาไม่สำเร็จ" });
   }
 });
 
-/* ================= TOGGLE USER BRANCH ================= */
 app.post("/api/user-branches/toggle", async (req, res) => {
   try {
     const { userId, branchId } = req.body;
@@ -604,24 +582,23 @@ app.post("/api/user-branches/toggle", async (req, res) => {
   }
 });
 
-/* ================= FILTER OPTIONS FOR REPORT ================= */
 app.get("/api/user-filter-options/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
 
     let user = null;
 
-   if (/^\d+$/.test(String(userId))) {
-  user = await db.collection("users").findOne({ id: Number(userId) });
-} else if (isValidObjectId(String(userId))) {
-  user = await db.collection("users").findOne({
-    _id: new ObjectId(String(userId)),
-  });
-} else {
-  user = await db.collection("users").findOne({
-    username: String(userId).trim(),
-  });
-}
+    if (/^\d+$/.test(String(userId))) {
+      user = await db.collection("users").findOne({ id: Number(userId) });
+    } else if (isValidObjectId(String(userId))) {
+      user = await db.collection("users").findOne({
+        _id: new ObjectId(String(userId)),
+      });
+    } else {
+      user = await db.collection("users").findOne({
+        username: String(userId).trim(),
+      });
+    }
 
     if (!user) {
       return res.json({
@@ -658,80 +635,91 @@ app.get("/api/user-filter-options/:userId", async (req, res) => {
   }
 });
 
-/* ================= SAVE VISIT ================= */
-app.post("/api/save-visit", async (req, res) => {
-  try {
-    const {
-      username,
-      user_id,
-      visit_date,
-      branch_id,
-      branch_display_name,
-      retailer,
-      brand,
-      store_name,
-      purpose,
-      detail,
-      solution,
-      before_images,
-      after_images,
-    } = req.body;
+app.post(
+  "/api/save-visit",
+  upload.fields([
+    { name: "before_images", maxCount: 5 },
+    { name: "after_images", maxCount: 5 },
+  ]),
+  async (req, res) => {
+    try {
+      const {
+        username,
+        user_id,
+        visit_date,
+        branch_id,
+        branch_display_name,
+        retailer,
+        brand,
+        store_name,
+        purpose,
+        detail,
+        solution,
+      } = req.body;
 
-    if (!username || !visit_date || !branch_display_name) {
-      return res.status(400).json({
+      if (!username || !visit_date || !branch_display_name) {
+        return res.status(400).json({
+          success: false,
+          message: "ข้อมูลไม่ครบ",
+        });
+      }
+
+      const user = await db.collection("users").findOne({
+        username: String(username).trim(),
+      });
+
+      const lastVisit = await db
+        .collection("visits")
+        .find({})
+        .sort({ id: -1 })
+        .limit(1)
+        .toArray();
+
+      const nextId = lastVisit.length ? Number(lastVisit[0].id || 0) + 1 : 1;
+
+      const beforeImages = (req.files?.before_images || []).map(
+        (file) => file.filename
+      );
+
+      const afterImages = (req.files?.after_images || []).map(
+        (file) => file.filename
+      );
+
+      const doc = {
+        id: nextId,
+        username: String(username).trim(),
+        user_id: user_id ? Number(user_id) : user?.id ?? null,
+        visit_date: String(visit_date).trim(),
+        branch_id: branch_id ? Number(branch_id) : null,
+        branch_display_name: branch_display_name || "",
+        retailer: retailer || "",
+        brand: brand || "",
+        store_name: store_name || "",
+        purpose: purpose || "",
+        detail: detail || "",
+        solution: solution || "",
+        before_images: beforeImages,
+        after_images: afterImages,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      await db.collection("visits").insertOne(doc);
+
+      res.json({
+        success: true,
+        message: "บันทึกข้อมูลสำเร็จ",
+      });
+    } catch (err) {
+      console.error("❌ save-visit error:", err);
+      res.status(500).json({
         success: false,
-        message: "ข้อมูลไม่ครบ",
+        message: "บันทึกข้อมูลไม่สำเร็จ",
       });
     }
-
-    const user = await db.collection("users").findOne({
-      username: String(username).trim(),
-    });
-
-    const lastVisit = await db
-      .collection("visits")
-      .find({})
-      .sort({ id: -1 })
-      .limit(1)
-      .toArray();
-
-    const nextId = lastVisit.length ? Number(lastVisit[0].id || 0) + 1 : 1;
-
-    const doc = {
-      id: nextId,
-      username: String(username).trim(),
-      user_id: user_id ? Number(user_id) : user?.id ?? null,
-      visit_date: String(visit_date).trim(),
-      branch_id: branch_id ? Number(branch_id) : null,
-      branch_display_name: branch_display_name || "",
-      retailer: retailer || "",
-      brand: brand || "",
-      store_name: store_name || "",
-      purpose: purpose || "",
-      detail: detail || "",
-      solution: solution || "",
-      before_images: Array.isArray(before_images) ? before_images : [],
-      after_images: Array.isArray(after_images) ? after_images : [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    await db.collection("visits").insertOne(doc);
-
-    res.json({
-      success: true,
-      message: "บันทึกข้อมูลสำเร็จ",
-    });
-  } catch (err) {
-    console.error("❌ save-visit error:", err);
-    res.status(500).json({
-      success: false,
-      message: "บันทึกข้อมูลไม่สำเร็จ",
-    });
   }
-});
+);
 
-/* ================= WORK LOG / REPORT ================= */
 app.get("/api/work_log", async (req, res) => {
   try {
     const { username, group, brand, branch } = req.query;
@@ -763,14 +751,10 @@ app.get("/api/work_log", async (req, res) => {
     res.json(visits.map(normalizeVisit));
   } catch (err) {
     console.error("❌ work_log error:", err);
-    res.status(500).json({
-      success: false,
-      message: "โหลดรายงานไม่สำเร็จ",
-    });
+    res.status(500).json({ success: false, message: "โหลดรายงานไม่สำเร็จ" });
   }
 });
 
-/* ================= DELETE WORK LOG ================= */
 app.delete("/api/work_log/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -797,20 +781,13 @@ app.delete("/api/work_log/:id", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      message: "ลบรายงานสำเร็จ",
-    });
+    res.json({ success: true, message: "ลบรายงานสำเร็จ" });
   } catch (err) {
     console.error("❌ Delete work_log error:", err);
-    res.status(500).json({
-      success: false,
-      message: "ลบรายงานไม่สำเร็จ",
-    });
+    res.status(500).json({ success: false, message: "ลบรายงานไม่สำเร็จ" });
   }
 });
 
-/* ================= START ================= */
 connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
