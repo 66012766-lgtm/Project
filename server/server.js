@@ -721,47 +721,36 @@ app.post(
 );
 app.get("/api/work_log", async (req, res) => {
   try {
+    const { username, group, brand, branch } = req.query;
+
+    const query = {};
+
+    if (username && username !== "ทั้งหมด") {
+      query.username = String(username).trim();
+    }
+
+    if (group && group !== "ทั้งหมด") {
+      query.retailer = String(group).trim();
+    }
+
+    if (brand && brand !== "ทั้งหมด") {
+      query.brand = String(brand).trim();
+    }
+
+    if (branch && branch !== "ทั้งหมด") {
+      query.branch_display_name = String(branch).trim();
+    }
+
     const visits = await db
       .collection("visits")
-      .find(
-        {},
-        {
-          projection: {
-            _id: 1,
-            id: 1,
-            username: 1,
-            user_id: 1,
-            visit_date: 1,
-            branch_id: 1,
-            branch_display_name: 1,
-            retailer: 1,
-            brand: 1,
-            store_name: 1,
-            purpose: 1,
-            detail: 1,
-            solution: 1,
-            before_images: 1,
-            after_images: 1,
-            createdAt: 1,
-            updatedAt: 1,
-          },
-        }
-      )
+      .find(query)
       .sort({ _id: -1 })
       .limit(300)
-      .allowDiskUse(true)
       .toArray();
 
-    res.json(
-      visits.map((v) => ({
-        ...v,
-        mongo_id: v._id?.toString(),
-        _id: v._id?.toString(),
-      }))
-    );
+    res.json(visits.map(normalizeVisit));
   } catch (err) {
     console.error("❌ work_log error:", err);
-
     res.status(500).json({
       success: false,
       message: "โหลดรายงานไม่สำเร็จ",
