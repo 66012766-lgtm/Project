@@ -734,7 +734,6 @@ app.post(
     }
   }
 );
-
 app.get("/api/work_log", async (req, res) => {
   try {
     const { username, group, brand, branch } = req.query;
@@ -757,12 +756,13 @@ app.get("/api/work_log", async (req, res) => {
       query.branch_display_name = String(branch).trim();
     }
 
-   const visits = await db
-  .collection("visits")
-  .find(query)
-  .sort({ createdAt: -1 })
-  .limit(300)
-  .toArray();
+    const visits = await db
+      .collection("visits")
+      .find(query)
+      .sort({ createdAt: -1 })
+      .allowDiskUse(true)
+      .limit(300)
+      .toArray();
 
     res.json(visits.map(normalizeVisit));
   } catch (err) {
@@ -770,7 +770,6 @@ app.get("/api/work_log", async (req, res) => {
     res.status(500).json({ success: false, message: "โหลดรายงานไม่สำเร็จ" });
   }
 });
-
 app.delete("/api/work_log/:id", async (req, res) => {
   try {
     const { id } = req.params;
