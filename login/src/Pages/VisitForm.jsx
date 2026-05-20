@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function VisitForm() {
@@ -11,6 +11,9 @@ export default function VisitForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [visibleBranches, setVisibleBranches] = useState([]);
+
+  const beforeInputRef = useRef(null);
+  const afterInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     visitDate: "",
@@ -137,7 +140,7 @@ export default function VisitForm() {
       const reader = new FileReader();
       reader.onload = () => {
         resolve({
-          file: file,
+          file,
           name: file.name,
           type: file.type,
           size: file.size,
@@ -181,7 +184,13 @@ export default function VisitForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.visitDate || !formData["สาขา"] || !formData.reason.trim()) {
+    if (
+      !formData.visitDate ||
+      !formData["สาขา"] ||
+      !formData.reason.trim() ||
+      !formData.problem.trim() ||
+      !formData.resolution_text.trim()
+    ) {
       alert("กรุณากรอกข้อมูลที่มี * ให้ครบ");
       return;
     }
@@ -238,8 +247,6 @@ export default function VisitForm() {
         payload.append("after_images", img.file);
       });
 
-      console.log("save payload =>", payload);
-
       const response = await fetch(`${API_URL}/api/save-visit`, {
         method: "POST",
         body: payload,
@@ -292,6 +299,7 @@ export default function VisitForm() {
               กรุณาระบุข้อมูลและรูปภาพเพื่อประสิทธิภาพในการตรวจสอบ
             </p>
           </div>
+
           <div style={styles.topActions}>
             {currentUser?.role === "admin" && (
               <button
@@ -388,23 +396,28 @@ export default function VisitForm() {
                 onChange={handleChange}
                 placeholder="เช่น เข้าตรวจเช็คระบบการทำงาน"
                 style={styles.input}
-                required
               />
             </div>
 
             <div style={styles.fieldWrap}>
-              <label style={styles.label}>รายละเอียดและปัญหาที่ตรวจพบ</label>
+              <label style={styles.label}>
+                รายละเอียดและปัญหาที่ตรวจพบ{" "}
+                <span style={styles.required}>*</span>
+              </label>
               <textarea
                 name="problem"
                 value={formData.problem}
                 onChange={handleChange}
-                placeholder="โปรดอธิบายสถานการณ์หรือปัญหาที่พบเจอดโดยละเอียด..."
+                placeholder="โปรดอธิบายสถานการณ์หรือปัญหาที่พบเจอโดยละเอียด..."
                 style={styles.textarea}
               />
             </div>
 
             <div style={{ marginTop: "20px" }}>
-              <label style={styles.label}>การจัดการปัญหา / แนวทางแก้ไข</label>
+              <label style={styles.label}>
+                การจัดการปัญหา / แนวทางแก้ไข{" "}
+                <span style={styles.required}>*</span>
+              </label>
               <textarea
                 name="resolution_text"
                 style={styles.textarea}
@@ -428,19 +441,27 @@ export default function VisitForm() {
               <div style={styles.uploadArea}>
                 <div style={styles.uploadHeader}>
                   <div style={styles.uploadLabel}>
-                    ภาพก่อนตรวจ Before (สูงสุด5รูป)
+                    ภาพก่อนตรวจ Before (สูงสุด 5 รูป)
                   </div>
-                  <label style={styles.uploadTrigger}>
+
+                  <button
+                    type="button"
+                    style={styles.uploadTrigger}
+                    onClick={() => beforeInputRef.current?.click()}
+                  >
                     เพิ่มรูป
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => handleFileChange(e, "beforeImages")}
-                      style={styles.hiddenInput}
-                    />
-                  </label>
+                  </button>
+
+                  <input
+                    ref={beforeInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    onChange={(e) => handleFileChange(e, "beforeImages")}
+                    style={styles.hiddenInput}
+                  />
                 </div>
+
                 <div style={styles.previewContainer}>
                   {formData.beforeImages.map((file, i) => (
                     <div key={`${file.name}-${i}`} style={styles.imageCard}>
@@ -464,19 +485,27 @@ export default function VisitForm() {
               <div style={styles.uploadArea}>
                 <div style={styles.uploadHeader}>
                   <div style={styles.uploadLabel}>
-                    ภาพหลังตรวจ After (สูงสุด5รูป)
+                    ภาพหลังตรวจ After (สูงสุด 5 รูป)
                   </div>
-                  <label style={styles.uploadTrigger}>
+
+                  <button
+                    type="button"
+                    style={styles.uploadTrigger}
+                    onClick={() => afterInputRef.current?.click()}
+                  >
                     เพิ่มรูป
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => handleFileChange(e, "afterImages")}
-                      style={styles.hiddenInput}
-                    />
-                  </label>
+                  </button>
+
+                  <input
+                    ref={afterInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    onChange={(e) => handleFileChange(e, "afterImages")}
+                    style={styles.hiddenInput}
+                  />
                 </div>
+
                 <div style={styles.previewContainer}>
                   {formData.afterImages.map((file, i) => (
                     <div key={`${file.name}-${i}`} style={styles.imageCard}>
@@ -801,6 +830,7 @@ const styles = {
     fontSize: "13px",
     fontWeight: "700",
     cursor: "pointer",
+    border: "none",
   },
 
   hiddenInput: {

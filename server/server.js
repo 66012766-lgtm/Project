@@ -46,10 +46,26 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 15 * 1024 * 1024,
+    fileSize: 25 * 1024 * 1024,
     files: 10,
+    fieldSize: 25 * 1024 * 1024,
+  },
+  fileFilter: (req, file, cb) => {
+    const allowed = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+    ];
+
+    if (!allowed.includes(file.mimetype)) {
+      return cb(new Error("รองรับเฉพาะไฟล์รูปภาพ"));
+    }
+
+    cb(null, true);
   },
 });
+
 
 if (!process.env.MONGODB_URI) {
   console.error("❌ ไม่พบ MONGODB_URI ในไฟล์ .env");
