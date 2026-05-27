@@ -33,8 +33,8 @@ export default function Login() {
     e.preventDefault();
     setIsLoading(true);
 
-    const username = formData.username.trim();
-    const password = formData.password.trim();
+    const username = formData.username.trim().toLowerCase();
+    const password = formData.password.trim().toLowerCase();
 
     if (!username || !password) {
       setError("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
@@ -77,7 +77,7 @@ export default function Login() {
           localStorage.removeItem("rememberUser");
         }
 
-        if (data.user.role === "admin") {
+        if ((data.user.role || "").toLowerCase() === "admin") {
           navigate("/admin-form", { replace: true });
         } else {
           navigate("/visit-form", { replace: true });

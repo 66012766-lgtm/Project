@@ -4,25 +4,24 @@ import { useNavigate } from "react-router-dom";
 const API_URL =
   import.meta.env.VITE_API_URL || "https://retailer-log-api.onrender.com";
 
-// ==========================================
-// 1. MAIN COMPONENT (Logic & State)
-// ==========================================
 export default function Report() {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [users, setUsers] = useState([]);
-  const [zoomedImage, setZoomedImage] = useState(null);
+  const [zoomedImages, setZoomedImages] = useState([]);
+  const [zoomedIndex, setZoomedIndex] = useState(0);
   const [selUser, setSelUser] = useState("");
   const [selRetailer, setSelRetailer] = useState("");
   const [selBrand, setSelBrand] = useState("");
   const [selBranch, setSelBranch] = useState("");
+  const [selDate, setSelDate] = useState("");
   const [masterOptions, setMasterOptions] = useState([]);
   const [checkedItems, setCheckedItems] = useState({});
 
   const normalizeText = (value) =>
-    String(value || "")
-      .trim()
-      .toLowerCase();
+    String(value || "").trim().toLowerCase();
+
+  const getRowKey = (row) => row?.mongo_id || row?.id;
 
   const findBranchMeta = (row, options) => {
     const safeOptions = Array.isArray(options) ? options : [];
@@ -38,21 +37,11 @@ export default function Report() {
     const branchName = normalizeText(row?.branch_name);
 
     return (
-      safeOptions.find(
-        (item) => normalizeText(item.display_name) === workplace,
-      ) ||
-      safeOptions.find(
-        (item) => normalizeText(item.branch_name) === workplace,
-      ) ||
-      safeOptions.find(
-        (item) => normalizeText(item.store_name) === workplace,
-      ) ||
-      safeOptions.find(
-        (item) => normalizeText(item.display_name) === displayName,
-      ) ||
-      safeOptions.find(
-        (item) => normalizeText(item.branch_name) === branchName,
-      ) ||
+      safeOptions.find((item) => normalizeText(item.display_name) === workplace) ||
+      safeOptions.find((item) => normalizeText(item.branch_name) === workplace) ||
+      safeOptions.find((item) => normalizeText(item.store_name) === workplace) ||
+      safeOptions.find((item) => normalizeText(item.display_name) === displayName) ||
+      safeOptions.find((item) => normalizeText(item.branch_name) === branchName) ||
       null
     );
   };
@@ -79,6 +68,7 @@ export default function Report() {
       setUsers([]);
     }
   };
+
   const userObj = users.find((u) => u.username === selUser);
 
   useEffect(() => {
@@ -104,6 +94,7 @@ export default function Report() {
       fetchData();
     }
   }, [userObj]);
+
   const handleDelete = async (id) => {
     if (!window.confirm("คุณต้องการลบรายงานนี้ใช่หรือไม่?")) return;
 
@@ -113,7 +104,9 @@ export default function Report() {
       });
 
       if (res.ok) {
-        setRows((prev) => prev.filter((row) => row.id !== id));
+        setRows((prev) =>
+          prev.filter((row) => String(getRowKey(row)) !== String(id)),
+        );
         alert("ลบข้อมูลสำเร็จ");
       } else {
         alert("ลบข้อมูลไม่สำเร็จ");
@@ -124,18 +117,37 @@ export default function Report() {
     }
   };
 
+  const openImageZoom = (images, index = 0) => {
+    setZoomedImages(Array.isArray(images) ? images : []);
+    setZoomedIndex(index);
+  };
+
+  const closeImageZoom = () => {
+    setZoomedImages([]);
+    setZoomedIndex(0);
+  };
+
+  const goPrevImage = () => {
+    setZoomedIndex((prev) =>
+      prev === 0 ? zoomedImages.length - 1 : prev - 1,
+    );
+  };
+
+  const goNextImage = () => {
+    setZoomedIndex((prev) =>
+      prev === zoomedImages.length - 1 ? 0 : prev + 1,
+    );
+  };
+
   const userOptions = useMemo(() => {
     const safeUsers = Array.isArray(users) ? users : [];
-    return [
-      ...new Set(safeUsers.map((u) => u.username).filter(Boolean)),
-    ].sort();
+    return [...new Set(safeUsers.map((u) => u.username).filter(Boolean))].sort();
   }, [users]);
 
   const retailerOpts = useMemo(() => {
     const data = selUser ? masterOptions : rows;
     const safe = Array.isArray(data) ? data : [];
-    const unique = [...new Set(safe.map((d) => d.retailer).filter(Boolean))];
-    return unique.sort();
+    return [...new Set(safe.map((d) => d.retailer).filter(Boolean))].sort();
   }, [rows, selUser, masterOptions]);
 
   const brandOpts = useMemo(() => {
@@ -146,8 +158,7 @@ export default function Report() {
       safe = safe.filter((d) => d.retailer === selRetailer);
     }
 
-    const unique = [...new Set(safe.map((d) => d.brand).filter(Boolean))];
-    return unique.sort();
+    return [...new Set(safe.map((d) => d.brand).filter(Boolean))].sort();
   }, [rows, selUser, selRetailer, masterOptions]);
 
   const branchList = useMemo(() => {
@@ -162,7 +173,7 @@ export default function Report() {
       safe = safe.filter((d) => d.brand === selBrand);
     }
 
-    const unique = [
+    return [
       ...new Set(
         safe
           .map(
@@ -174,9 +185,7 @@ export default function Report() {
           )
           .filter(Boolean),
       ),
-    ];
-
-    return unique.sort();
+    ].sort();
   }, [rows, selUser, selRetailer, selBrand, masterOptions]);
 
   const filteredData = useMemo(() => {
@@ -197,14 +206,17 @@ export default function Report() {
         r.workplace ||
         "";
 
+      const rowDate = r.visit_date || r.work_date || "";
+
       return (
+        (!selDate || rowDate === selDate) &&
         (!selUser || r.username === selUser) &&
         (!selRetailer || effectiveRetailer === selRetailer) &&
         (!selBrand || effectiveBrand === selBrand) &&
         (!selBranch || effectiveBranch === selBranch)
       );
     });
-  }, [rows, masterOptions, selUser, selRetailer, selBrand, selBranch]);
+  }, [rows, masterOptions, selDate, selUser, selRetailer, selBrand, selBranch]);
 
   return (
     <div className="report-container">
@@ -239,6 +251,15 @@ export default function Report() {
             <h3>ตัวกรองข้อมูลอัจฉริยะ</h3>
           </div>
           <div className="filter-grid">
+            <div className="filter-group">
+              <label>วันที่เข้าตรวจ</label>
+              <input
+                type="date"
+                value={selDate}
+                onChange={(e) => setSelDate(e.target.value)}
+              />
+            </div>
+
             <FilterSelect
               label="ผู้ใช้ระบบ"
               value={selUser}
@@ -280,6 +301,7 @@ export default function Report() {
             />
           </div>
         </section>
+
         <div className="table-card">
           <div className="table-top">
             <div className="table-info">
@@ -307,20 +329,27 @@ export default function Report() {
                 {filteredData.length === 0 ? (
                   <EmptyState />
                 ) : (
-                  filteredData.map((r) => (
-                    <DataRow
-                      key={r.id || r.mongo_id}
-                      r={r}
-                      checked={checkedItems[r.id] || false}
-                      onCheck={() =>
-                        setCheckedItems((p) => ({ ...p, [r.id]: !p[r.id] }))
-                      }
-                      onDelete={() => handleDelete(r.id || r.mongo_id)}
-                      onZoom={setZoomedImage}
-                      masterOptions={masterOptions}
-                      findBranchMeta={findBranchMeta}
-                    />
-                  ))
+                  filteredData.map((r) => {
+                    const rowKey = getRowKey(r);
+
+                    return (
+                      <DataRow
+                        key={rowKey}
+                        r={r}
+                        checked={checkedItems[rowKey] || false}
+                        onCheck={() =>
+                          setCheckedItems((p) => ({
+                            ...p,
+                            [rowKey]: !p[rowKey],
+                          }))
+                        }
+                        onDelete={() => handleDelete(rowKey)}
+                        onZoom={openImageZoom}
+                        masterOptions={masterOptions}
+                        findBranchMeta={findBranchMeta}
+                      />
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -328,8 +357,14 @@ export default function Report() {
         </div>
       </div>
 
-      {zoomedImage && (
-        <ImageZoom src={zoomedImage} onClose={() => setZoomedImage(null)} />
+      {zoomedImages.length > 0 && (
+        <ImageZoom
+          images={zoomedImages}
+          index={zoomedIndex}
+          onClose={closeImageZoom}
+          onPrev={goPrevImage}
+          onNext={goNextImage}
+        />
       )}
 
       <style>{customCSS}</style>
@@ -388,6 +423,7 @@ const DataRow = ({
 
   const normalizeImageSrc = (src) => {
     if (!src) return "";
+
     const clean = String(src).trim();
 
     if (
@@ -398,7 +434,15 @@ const DataRow = ({
       return clean;
     }
 
-    return `${API_URL}/uploads/${clean}`;
+    if (clean.startsWith("/uploads/")) {
+      return `${API_URL}${encodeURI(clean)}`;
+    }
+
+    if (clean.startsWith("uploads/")) {
+      return `${API_URL}/${encodeURI(clean)}`;
+    }
+
+    return `${API_URL}/uploads/${encodeURI(clean)}`;
   };
 
   const renderImgs = (data) => {
@@ -422,17 +466,25 @@ const DataRow = ({
         return <div className="thumb-empty">ไม่มีรูป</div>;
       }
 
+      const normalizedImgs = imgs.map((item) => normalizeImageSrc(item));
+
       return (
         <div className="thumb-grid">
-          {imgs.map((src, i) => {
-            const finalSrc = normalizeImageSrc(src);
+          {normalizedImgs.map((src, i) => {
             return (
               <div
-                key={`${r.id || r.mongo_id}-img-${i}`}
+                key={`${r.mongo_id || r.id}-img-${i}`}
                 className="thumb-item"
-                onClick={() => onZoom(finalSrc)}
+                onClick={() => onZoom(normalizedImgs, i)}
               >
-                <img src={finalSrc} className="thumb-img" alt="preview" />
+                <img
+                  src={src}
+                  className="thumb-img"
+                  alt="preview"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
               </div>
             );
           })}
@@ -504,16 +556,35 @@ const EmptyState = () => (
   </tr>
 );
 
-const ImageZoom = ({ src, onClose }) => (
-  <div className="zoom-overlay" onClick={onClose}>
-    <div className="zoom-content" onClick={(e) => e.stopPropagation()}>
-      <img src={src} alt="Zoomed" />
-      <button className="close-zoom" onClick={onClose}>
-        ✕
-      </button>
+const ImageZoom = ({ images, index, onClose, onPrev, onNext }) => {
+  const src = images[index];
+
+  return (
+    <div className="zoom-overlay" onClick={onClose}>
+      <div className="zoom-content" onClick={(e) => e.stopPropagation()}>
+        <img src={src} alt="Zoomed" />
+
+        {images.length > 1 && (
+          <>
+            <button className="zoom-arrow zoom-prev" onClick={onPrev}>
+              ‹
+            </button>
+            <button className="zoom-arrow zoom-next" onClick={onNext}>
+              ›
+            </button>
+            <div className="zoom-counter">
+              {index + 1} / {images.length}
+            </div>
+          </>
+        )}
+
+        <button className="close-zoom" onClick={onClose}>
+          ✕
+        </button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const customCSS = `
   @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@200;300;400;500;600;700;800&display=swap');
@@ -540,158 +611,10 @@ const customCSS = `
     overflow-x: hidden;
   }
 
-  .bg-blur {
-    position: absolute;
-    width: 500px;
-    height: 500px;
-    border-radius: 50%;
-    filter: blur(100px);
-    opacity: 0.3;
-    z-index: 0;
-  }
-
-  .blur-1 {
-    top: -100px;
-    left: -100px;
-    background: #bfdbfe;
-  }
-
-  .blur-2 {
-    bottom: -100px;
-    right: -100px;
-    background: #c7d2fe;
-  }
-
-  .main-content {
-    position: relative;
-    z-index: 2;
-    max-width: 1250px;
-    margin: 0 auto;
-  }
-
-  .header-card,
-  .filter-card,
-  .table-card {
-    background: rgba(255,255,255,0.9);
-    backdrop-filter: blur(18px);
-    border-radius: 28px;
-    box-shadow: 0 10px 40px rgba(15, 23, 42, 0.06);
-    border: 1px solid rgba(255,255,255,0.7);
-  }
-
-  .header-card {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 28px;
-    margin-bottom: 20px;
-  }
-
-  .badge-new {
-    display: inline-block;
-    padding: 8px 14px;
-    border-radius: 999px;
-    background: #dbeafe;
-    color: #2563eb;
-    font-size: 13px;
-    font-weight: 700;
-    margin-bottom: 16px;
-    text-transform: uppercase;
-  }
-
-  .title-text {
-    font-size: 42px;
-    margin: 0 0 8px;
-    font-weight: 800;
-    letter-spacing: -1px;
-  }
-
-  .subtitle-text {
-    margin: 0 0 14px;
-    color: #64748b;
-    font-size: 18px;
-  }
-
-  .admin-status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #64748b;
-    font-weight: 600;
-  }
-
-  .pulse-dot {
-    width: 9px;
-    height: 9px;
-    background: #22c55e;
-    border-radius: 50%;
-    display: inline-block;
-  }
-
-  .admin-name {
-    color: #2563eb;
-    font-weight: 700;
-  }
-
-  .header-actions {
-    display: flex;
-    gap: 12px;
-  }
-
-  .btn-outline,
-  .btn-solid {
-    border: none;
-    border-radius: 16px;
-    padding: 14px 20px;
-    font-family: inherit;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .btn-outline {
-    background: #fff;
-    border: 1px solid #dbe3ef;
-    color: #0f172a;
-  }
-
-  .btn-solid {
-    background: #0f172a;
-    color: #fff;
-  }
-
-  .filter-card {
-    padding: 24px 28px;
-    margin-bottom: 18px;
-  }
-
-  .filter-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-
-  .filter-title h3 {
-    margin: 0;
-    font-size: 18px;
-  }
-
-  .filter-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-  }
-
-  .filter-group label {
-    display: block;
-    margin-bottom: 8px;
-    color: #64748b;
-    font-weight: 600;
-  }
-
-  .filter-group select {
+  .filter-group select,
+  .filter-group input {
     width: 100%;
+    box-sizing: border-box;
     border-radius: 16px;
     border: 1px solid #d9e2ec;
     background: #fff;
@@ -701,258 +624,73 @@ const customCSS = `
     outline: none;
   }
 
-  .table-card {
-    padding: 24px 28px;
-  }
-
-  .table-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-  }
-
-  .table-info h3 {
-    margin: 0 0 10px;
-    font-size: 20px;
-  }
-
-  .count-pill {
-    display: inline-block;
-    background: #e0e7ff;
-    color: #2563eb;
-    padding: 6px 12px;
-    border-radius: 999px;
-    font-weight: 700;
-    font-size: 14px;
-  }
-
-  .table-overflow {
-    overflow-x: auto;
-  }
-
-  .custom-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .custom-table thead th {
-    text-align: left;
-    padding: 16px 14px;
-    background: #f8fafc;
-    color: #64748b;
-    font-size: 14px;
-    font-weight: 700;
-  }
-
-  .custom-table tbody td {
-    padding: 18px 14px;
-    border-top: 1px solid #eef2f7;
-    vertical-align: top;
-    font-size: 15px;
-  }
-
-  .date-main {
-    display: block;
-    font-weight: 700;
-    color: #0f172a;
-  }
-
-  .date-sub {
-    display: block;
-    color: #94a3b8;
-    font-size: 13px;
-    margin-top: 4px;
-  }
-
-  .td-user {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 700;
-  }
-
-  .user-avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 12px;
-    background: #dbeafe;
-    color: #2563eb;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 800;
-  }
-
-  .loc-retailer {
-    font-weight: 700;
-    color: #2563eb;
-    margin-bottom: 4px;
-  }
-
-  .loc-name {
-    font-weight: 700;
-    margin-bottom: 6px;
-  }
-
-  .brand-tag {
-    display: inline-block;
-    background: #f1f5f9;
-    color: #475569;
-    padding: 4px 8px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .issue-desc {
-    color: #0f172a;
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-
-  .issue-detail {
-    color: #64748b;
-  }
-
-  .td-resolution {
-    color: #334155;
-    font-weight: 500;
-  }
-
-  .thumb-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .thumb-item {
-    width: 56px;
-    height: 56px;
-    border-radius: 12px;
-    overflow: hidden;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    cursor: pointer;
-  }
-
-  .thumb-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .thumb-empty {
-    color: #94a3b8;
-    font-size: 13px;
-  }
-
-  .check-work-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    align-items: flex-start;
-  }
-
-  .official-checkbox {
-    width: 18px;
-    height: 18px;
-  }
-
-  .checkbox-status-label {
-    font-size: 13px;
-    color: #334155;
-    font-weight: 600;
-  }
-
-  .btn-delete {
-    background: #fee2e2;
-    color: #dc2626;
-    border: none;
-    border-radius: 12px;
-    padding: 10px 14px;
-    font-family: inherit;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .no-data {
-    text-align: center;
-    padding: 40px 20px !important;
-  }
-
-  .empty-state {
-    color: #94a3b8;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    font-weight: 600;
-  }
-
-  .empty-icon {
-    font-size: 40px;
-  }
-
-  .zoom-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: 20px;
-  }
-
-  .zoom-content {
-    position: relative;
-    max-width: 90vw;
-    max-height: 90vh;
-  }
-
-  .zoom-content img {
-    max-width: 100%;
-    max-height: 90vh;
-    border-radius: 18px;
-    display: block;
-  }
-
-  .close-zoom {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: #fff;
-    border: none;
-    width: 36px;
-    height: 36px;
-    border-radius: 999px;
-    cursor: pointer;
-    font-size: 18px;
-  }
+  .bg-blur { position: absolute; width: 500px; height: 500px; border-radius: 50%; filter: blur(100px); opacity: 0.3; z-index: 0; }
+  .blur-1 { top: -100px; left: -100px; background: #bfdbfe; }
+  .blur-2 { bottom: -100px; right: -100px; background: #c7d2fe; }
+  .main-content { position: relative; z-index: 2; max-width: 1250px; margin: 0 auto; }
+  .header-card, .filter-card, .table-card { background: rgba(255,255,255,0.9); backdrop-filter: blur(18px); border-radius: 28px; box-shadow: 0 10px 40px rgba(15, 23, 42, 0.06); border: 1px solid rgba(255,255,255,0.7); }
+  .header-card { display: flex; justify-content: space-between; align-items: flex-start; padding: 28px; margin-bottom: 20px; }
+  .badge-new { display: inline-block; padding: 8px 14px; border-radius: 999px; background: #dbeafe; color: #2563eb; font-size: 13px; font-weight: 700; margin-bottom: 16px; text-transform: uppercase; }
+  .title-text { font-size: 42px; margin: 0 0 8px; font-weight: 800; letter-spacing: -1px; }
+  .subtitle-text { margin: 0 0 14px; color: #64748b; font-size: 18px; }
+  .admin-status { display: flex; align-items: center; gap: 8px; color: #64748b; font-weight: 600; }
+  .pulse-dot { width: 9px; height: 9px; background: #22c55e; border-radius: 50%; display: inline-block; }
+  .admin-name { color: #2563eb; font-weight: 700; }
+  .header-actions { display: flex; gap: 12px; }
+  .btn-outline, .btn-solid { border: none; border-radius: 16px; padding: 14px 20px; font-family: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
+  .btn-outline { background: #fff; border: 1px solid #dbe3ef; color: #0f172a; }
+  .btn-solid { background: #0f172a; color: #fff; }
+  .filter-card { padding: 24px 28px; margin-bottom: 18px; }
+  .filter-title { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .filter-title h3 { margin: 0; font-size: 18px; }
+  .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; align-items: end; }
+  .filter-group label { display: block; margin-bottom: 8px; color: #64748b; font-weight: 600; }
+  .table-card { padding: 24px 28px; }
+  .table-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .table-info h3 { margin: 0 0 10px; font-size: 20px; }
+  .count-pill { display: inline-block; background: #e0e7ff; color: #2563eb; padding: 6px 12px; border-radius: 999px; font-weight: 700; font-size: 14px; }
+  .table-overflow { overflow-x: auto; }
+  .custom-table { width: 100%; border-collapse: collapse; }
+  .custom-table thead th { text-align: left; padding: 16px 14px; background: #f8fafc; color: #64748b; font-size: 14px; font-weight: 700; }
+  .custom-table tbody td { padding: 18px 14px; border-top: 1px solid #eef2f7; vertical-align: top; font-size: 15px; }
+  .date-main { display: block; font-weight: 700; color: #0f172a; }
+  .date-sub { display: block; color: #94a3b8; font-size: 13px; margin-top: 4px; }
+  .td-user { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+  .user-avatar { width: 34px; height: 34px; border-radius: 12px; background: #dbeafe; color: #2563eb; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+  .loc-retailer { font-weight: 700; color: #2563eb; margin-bottom: 4px; }
+  .loc-name { font-weight: 700; margin-bottom: 6px; }
+  .brand-tag { display: inline-block; background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .issue-desc { color: #0f172a; font-weight: 600; margin-bottom: 4px; }
+  .issue-detail { color: #64748b; }
+  .td-resolution { color: #334155; font-weight: 500; }
+  .thumb-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .thumb-item { width: 56px; height: 56px; border-radius: 12px; overflow: hidden; background: #f8fafc; border: 1px solid #e2e8f0; cursor: pointer; }
+  .thumb-img { width: 100%; height: 100%; object-fit: cover; }
+  .thumb-empty { color: #94a3b8; font-size: 13px; }
+  .check-work-wrap { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .official-checkbox { width: 18px; height: 18px; }
+  .checkbox-status-label { font-size: 13px; color: #334155; font-weight: 600; }
+  .btn-delete { background: #fee2e2; color: #dc2626; border: none; border-radius: 12px; padding: 10px 14px; font-family: inherit; font-weight: 700; cursor: pointer; }
+  .no-data { text-align: center; padding: 40px 20px !important; }
+  .empty-state { color: #94a3b8; display: flex; flex-direction: column; align-items: center; gap: 10px; font-weight: 600; }
+  .empty-icon { font-size: 40px; }
+  .zoom-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+  .zoom-content { position: relative; max-width: 90vw; max-height: 90vh; }
+  .zoom-content img { max-width: 100%; max-height: 90vh; border-radius: 18px; display: block; }
+  .close-zoom { position: absolute; top: 10px; right: 10px; background: #fff; border: none; width: 36px; height: 36px; border-radius: 999px; cursor: pointer; font-size: 18px; }
+  .zoom-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 46px; border: none; border-radius: 999px; background: rgba(255,255,255,0.92); color: #0f172a; font-size: 38px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .zoom-prev { left: 14px; }
+  .zoom-next { right: 14px; }
+  .zoom-counter { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: rgba(15,23,42,0.75); color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
 
   @media (max-width: 1024px) {
-    .filter-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    .header-card {
-      flex-direction: column;
-      gap: 20px;
-    }
+    .filter-grid { grid-template-columns: repeat(2, 1fr); }
+    .header-card { flex-direction: column; gap: 20px; }
   }
 
   @media (max-width: 640px) {
-    .report-container {
-      padding: 20px 14px;
-    }
-
-    .filter-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .title-text {
-      font-size: 30px;
-    }
+    .report-container { padding: 20px 14px; }
+    .filter-grid { grid-template-columns: 1fr; }
+    .title-text { font-size: 30px; }
   }
 `;

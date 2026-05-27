@@ -5,8 +5,16 @@ import { MongoClient, ObjectId } from "mongodb";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { v2 as cloudinary } from "cloudinary";
+import streamifier from "streamifier";
 
 dotenv.config();
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,16 +40,7 @@ if (!fs.existsSync(uploadDir)) {
 
 app.use("/uploads", express.static(uploadDir));
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname || "");
-    const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    cb(null, filename);
-  },
-});
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -51,12 +50,7 @@ const upload = multer({
     fieldSize: 25 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
-    const allowed = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/webp",
-    ];
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 
     if (!allowed.includes(file.mimetype)) {
       return cb(new Error("รองรับเฉพาะไฟล์รูปภาพ"));
@@ -65,7 +59,6 @@ const upload = multer({
     cb(null, true);
   },
 });
-
 
 if (!process.env.MONGODB_URI) {
   console.error("❌ ไม่พบ MONGODB_URI ในไฟล์ .env");
@@ -78,6 +71,26 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 });
 
 let db;
+
+async function uploadToCloudinary(fileBuffer, folder = "worklog") {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result.secure_url);
+        }
+      }
+    );
+
+    streamifier.createReadStream(fileBuffer).pipe(stream);
+  });
+}
 
 function isValidObjectId(value) {
   return ObjectId.isValid(value);
@@ -163,11 +176,7 @@ async function getBranchesForUser(user) {
   };
 
   if (role === "admin" || username === "admin") {
-    return await db
-      .collection("branches")
-      .find({}, projection)
-      .limit(500)
-      .toArray();
+    return await db.collection("branches").find({}, projection).limit(500).toArray();
   }
 
   const branchesByUser = await db
@@ -180,11 +189,7 @@ async function getBranchesForUser(user) {
     return branchesByUser;
   }
 
-  return await db
-    .collection("branches")
-    .find({}, projection)
-    .limit(500)
-    .toArray();
+  return await db.collection("branches").find({}, projection).limit(500).toArray();
 }
 
 async function connectDB() {
@@ -234,13 +239,7 @@ app.post("/api/users", async (req, res) => {
       });
     }
 
-    const lastUser = await db
-      .collection("users")
-      .find({})
-      .sort({ id: -1 })
-      .limit(1)
-      .toArray();
-
+    const lastUser = await db.collection("users").find({}).sort({ id: -1 }).limit(1).toArray();
     const nextId = lastUser.length ? Number(lastUser[0].id || 0) + 1 : 1;
 
     const result = await db.collection("users").insertOne({
@@ -705,12 +704,16 @@ app.post(
 
       const nextId = lastVisit.length ? Number(lastVisit[0].id || 0) + 1 : 1;
 
-      const beforeImages = (req.files?.before_images || []).map(
-        (file) => file.filename
+      const beforeImages = await Promise.all(
+        (req.files?.before_images || []).map((file) =>
+          uploadToCloudinary(file.buffer, "worklog/before_images")
+        )
       );
 
-      const afterImages = (req.files?.after_images || []).map(
-        (file) => file.filename
+      const afterImages = await Promise.all(
+        (req.files?.after_images || []).map((file) =>
+          uploadToCloudinary(file.buffer, "worklog/after_images")
+        )
       );
 
       const doc = {

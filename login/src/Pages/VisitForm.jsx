@@ -13,7 +13,9 @@ export default function VisitForm() {
   const [visibleBranches, setVisibleBranches] = useState([]);
 
   const beforeInputRef = useRef(null);
+  const beforeCameraRef = useRef(null);
   const afterInputRef = useRef(null);
+  const afterCameraRef = useRef(null);
 
   const [formData, setFormData] = useState({
     visitDate: "",
@@ -135,18 +137,57 @@ export default function VisitForm() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const fileToDataUrl = (file) =>
+  const compressImage = (file, maxWidth = 1280, quality = 0.75) =>
     new Promise((resolve, reject) => {
+      if (!file.type.startsWith("image/")) {
+        reject(new Error("รองรับเฉพาะไฟล์รูปภาพ"));
+        return;
+      }
+
+      const img = new Image();
       const reader = new FileReader();
+
       reader.onload = () => {
-        resolve({
-          file,
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          preview: reader.result,
-        });
+        img.src = reader.result;
       };
+
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(1, maxWidth / img.width);
+
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("บีบอัดรูปไม่สำเร็จ"));
+              return;
+            }
+
+            const compressedFile = new File(
+              [blob],
+              file.name.replace(/\.[^/.]+$/, ".jpg"),
+              { type: "image/jpeg" },
+            );
+
+            resolve({
+              file: compressedFile,
+              name: compressedFile.name,
+              type: compressedFile.type,
+              size: compressedFile.size,
+              preview: URL.createObjectURL(compressedFile),
+            });
+          },
+          "image/jpeg",
+          quality,
+        );
+      };
+
+      img.onerror = reject;
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
@@ -162,7 +203,9 @@ export default function VisitForm() {
     }
 
     try {
-      const mappedFiles = await Promise.all(files.map(fileToDataUrl));
+      const mappedFiles = await Promise.all(
+        files.map((file) => compressImage(file)),
+      );
       setFormData((prev) => ({ ...prev, [fieldName]: mappedFiles }));
     } catch (error) {
       console.error(error);
@@ -400,10 +443,7 @@ export default function VisitForm() {
             </div>
 
             <div style={styles.fieldWrap}>
-              <label style={styles.label}>
-                รายละเอียดและปัญหาที่ตรวจพบ{" "}
-                <span style={styles.required}>*</span>
-              </label>
+              <label style={styles.label}>รายละเอียดและปัญหาที่ตรวจพบ</label>
               <textarea
                 name="problem"
                 value={formData.problem}
@@ -415,8 +455,7 @@ export default function VisitForm() {
 
             <div style={{ marginTop: "20px" }}>
               <label style={styles.label}>
-                การจัดการปัญหา / แนวทางแก้ไข{" "}
-                <span style={styles.required}>*</span>
+                การจัดการปัญหา / แนวทางแก้ไข
               </label>
               <textarea
                 name="resolution_text"
@@ -444,19 +483,38 @@ export default function VisitForm() {
                     ภาพก่อนตรวจ Before (สูงสุด 5 รูป)
                   </div>
 
-                  <button
-                    type="button"
-                    style={styles.uploadTrigger}
-                    onClick={() => beforeInputRef.current?.click()}
-                  >
-                    เพิ่มรูป
-                  </button>
+                  <div style={styles.uploadButtonGroup}>
+                    <button
+                      type="button"
+                      style={styles.uploadTrigger}
+                      onClick={() => beforeInputRef.current?.click()}
+                    >
+                      เลือกรูป
+                    </button>
+
+                    <button
+                      type="button"
+                      style={styles.cameraTrigger}
+                      onClick={() => beforeCameraRef.current?.click()}
+                    >
+                      ถ่ายภาพ
+                    </button>
+                  </div>
 
                   <input
                     ref={beforeInputRef}
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/*"
                     multiple
+                    onChange={(e) => handleFileChange(e, "beforeImages")}
+                    style={styles.hiddenInput}
+                  />
+
+                  <input
+                    ref={beforeCameraRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
                     onChange={(e) => handleFileChange(e, "beforeImages")}
                     style={styles.hiddenInput}
                   />
@@ -488,19 +546,38 @@ export default function VisitForm() {
                     ภาพหลังตรวจ After (สูงสุด 5 รูป)
                   </div>
 
-                  <button
-                    type="button"
-                    style={styles.uploadTrigger}
-                    onClick={() => afterInputRef.current?.click()}
-                  >
-                    เพิ่มรูป
-                  </button>
+                  <div style={styles.uploadButtonGroup}>
+                    <button
+                      type="button"
+                      style={styles.uploadTrigger}
+                      onClick={() => afterInputRef.current?.click()}
+                    >
+                      เลือกรูป
+                    </button>
+
+                    <button
+                      type="button"
+                      style={styles.cameraTrigger}
+                      onClick={() => afterCameraRef.current?.click()}
+                    >
+                      ถ่ายภาพ
+                    </button>
+                  </div>
 
                   <input
                     ref={afterInputRef}
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/*"
                     multiple
+                    onChange={(e) => handleFileChange(e, "afterImages")}
+                    style={styles.hiddenInput}
+                  />
+
+                  <input
+                    ref={afterCameraRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
                     onChange={(e) => handleFileChange(e, "afterImages")}
                     style={styles.hiddenInput}
                   />
@@ -822,8 +899,25 @@ const styles = {
     color: "#334155",
   },
 
+  uploadButtonGroup: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+
   uploadTrigger: {
     background: "#2563eb",
+    color: "#fff",
+    padding: "8px 14px",
+    borderRadius: "10px",
+    fontSize: "13px",
+    fontWeight: "700",
+    cursor: "pointer",
+    border: "none",
+  },
+
+  cameraTrigger: {
+    background: "#0f172a",
     color: "#fff",
     padding: "8px 14px",
     borderRadius: "10px",
